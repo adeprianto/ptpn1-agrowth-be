@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,50 +11,71 @@ class Employees extends Model
     use HasFactory;
 
     protected $fillable = [
-        'entity_id',
-        'position_title_id',
-        'nik',
-        'nama',
-        'tempat_lahir',
-        'tanggal_lahir',
+        'nik', 
+        'nama', 
+        'gelar_depan', 
+        'gelar_belakang',
+        'tempat_lahir', 
+        'tanggal_lahir', 
         'jenis_kelamin',
-        'pendidikan',
+        'position_title_id', 
+        'entity_id', 
+        'entity_operational_id',
+        'status', 
+        'penugasan', 
         'kso_non_kso',
-        'personnel_area',
-        'personnel_sub_area',
-        'employee_group',
-        'employee_subgroup',
-        'person_grade',
+        'employee_group', 
+        'employee_subgroup', 
+        'person_grade', 
         'golongan_phdp',
-        'mbt',
+        'pendidikan', 
+        'jurusan',
+        'mbt', 
+        'tanggal_pensiun', 
+        'tanggal_acuan_masa_kerja',
     ];
 
     protected $casts = [
         'tanggal_lahir' => 'date',
+        'tanggal_pensiun' => 'date',
+        'tanggal_acuan_masa_kerja' => 'date',
     ];
+
+    // === Relasi ===
+
+    public function positionTitle()
+    {
+        return $this->belongsTo(PositionTitle::class);
+    }
 
     public function entity()
     {
         return $this->belongsTo(Entities::class, 'entity_id');
     }
 
-    public function jobFamily()
+    public function entityOperational()
     {
-        return $this->belongsTo(JobFamilies::class);
+        return $this->belongsTo(EntityOperational::class, 'entity_operational_id');
     }
 
-    public function position()
+    // === Derived attributes ===
+
+    public function getNamaLengkapAttribute(): string
     {
-        return $this->belongsTo(PositionTitle::class, 'position_id');
+        return trim(implode(' ', array_filter([
+            $this->gelar_depan,
+            $this->nama,
+            $this->gelar_belakang,
+        ])));
     }
 
-    public function getUsiaAttribute(): ?int 
+    public function getUsiaAttribute(): ?int
     {
         return $this->tanggal_lahir?->age;
     }
 
-    public function user()
+    public function getMasaKerjaTahunAttribute(): ?int
     {
-        return $this->hasOne(User::class, 'employee_id');
+        return $this->tanggal_acuan_masa_kerja?->diffInYears(Carbon::now());
     }
 }

@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class JobFamilies extends Model
+class JobGroups extends Model
 {
     use HasFactory;
 
@@ -14,8 +14,8 @@ class JobFamilies extends Model
         'name',
     ];
 
-    public function positions()
+    public function positionTitles()
     {
-        return $this->hasMany(PositionTitle::class, 'job_family_id');
+        return $this->hasMany(PositionTitle::class);
     }
 }

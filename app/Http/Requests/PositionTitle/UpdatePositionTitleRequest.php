@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests\PositionTitle;
 
+use App\Enums\BodLevel;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Enum;
 
 class UpdatePositionTitleRequest extends FormRequest
 {
@@ -24,12 +26,14 @@ class UpdatePositionTitleRequest extends FormRequest
     public function rules(): array
     {
         $positionTitle = $this->route('positionTitle');
+    
         return [
             'code' => ['required', 'string', 'max:30', Rule::unique('position_titles', 'code')->ignore($positionTitle->id)],
-            'name' => ['required', 'string', 'max:150'],
-            'level' => ['required', 'integer', 'min:1' , 'max:10'],
-            'job_family_id' => ['nullable', 'exists:job_families,id'],
-            'organization_id' => ['nullable', 'exists:organizations,id'],
+            'name' => ['required', 'string', 'max:200'],
+            'name_sap' => ['nullable', 'string', 'max:200'],
+            'level_bod' => ['nullable', new Enum(BodLevel::class)],
+            'job_group_id' => ['nullable', 'exists:job_groups,id'],
+            'job_function_id' => ['nullable', 'exists:job_functions,id'],
         ];
     }
 }

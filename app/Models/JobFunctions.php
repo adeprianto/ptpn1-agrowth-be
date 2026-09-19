@@ -15,9 +15,14 @@ class JobFunctions extends Model
         'code',
         'name',
     ];
-
-    public function Organization()
+    
+    public function organizations()
     {
-        return $this->hasMany(Organization::class, 'function_id');
+        return $this->hasMany(Organization::class, 'job_function_id');
+    }
+    
+    public function positionTitles()
+    {
+        return $this->hasMany(PositionTitle::class, 'job_function_id');
     }
 }

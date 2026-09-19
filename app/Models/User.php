@@ -42,4 +42,17 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Employees::class, 'employee_id');
     }
+
+    public function accessibleEntityIds(): array
+    {
+        if (! $this->entity) {
+            return [];
+        }
+    
+        if ($this->entity->type === 'HEAD_OFFICE') {
+            return Entities::pluck('id')->all();
+        }
+    
+        return $this->entity->accessibleEntityIds();
+    }
 }

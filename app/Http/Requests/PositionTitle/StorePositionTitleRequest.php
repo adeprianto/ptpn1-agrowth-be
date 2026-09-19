@@ -27,10 +27,11 @@ class StorePositionTitleRequest extends FormRequest
     {
         return [
             'code' => ['required', 'string', 'max:30', Rule::unique('position_titles', 'code')],
-            'name' => ['required', 'string', 'max:150'],
-            'level' => ['nullable', new Enum(BodLevel::class)],
-            'job_family_id' => ['nullable', 'exists:job_families,id'],
-            'organization_id' => ['nullable', 'exists:organizaion,id'],
+            'name' => ['required', 'string', 'max:200'],
+            'name_sap' => ['nullable', 'string', 'max:200'],
+            'level_bod' => ['nullable', new Enum(BodLevel::class)],
+            'job_group_id' => ['nullable', 'exists:job_groups,id'],
+            'job_function_id' => ['nullable', 'exists:job_functions,id'],
         ];
     }
 }

@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Http\Requests\JobFamily;
+namespace App\Http\Requests\TrainingRealization;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
-class StoreJobFamilyRequest extends FormRequest
+class StoreTrainingRealizationRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -24,8 +23,10 @@ class StoreJobFamilyRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'code' => ['required', 'string', 'max:20', Rule::unique('job_families', 'code')],
-            'name' => ['required', 'string', 'max:100'],
+            'training_name' => ['required', 'string', 'max:200'],
+            'training_id' => ['nullable', 'exists:trainings,id'],
+            'training_start_date' => ['required', 'date'],
+            'training_end_date' => ['required', 'date', 'after_or_equal:training_start_date'],
         ];
     }
 }

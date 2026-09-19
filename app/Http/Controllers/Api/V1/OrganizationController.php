@@ -18,7 +18,7 @@ class OrganizationController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Organization::with(['organization_type', 'entity', 'jobFunction', 'parent']);
+        $query = Organization::with(['organizationType', 'entity', 'jobFunction', 'parent']);
 
         if ($entityId = $request->query('entity_id')) {
             $query->where('entity_id', $entityId);

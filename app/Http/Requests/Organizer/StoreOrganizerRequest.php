@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Http\Requests\JobFamily;
+namespace App\Http\Requests\Organizer;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
-class UpdateJobFamilyRequest extends FormRequest
+class StoreOrganizerRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -23,11 +22,9 @@ class UpdateJobFamilyRequest extends FormRequest
      */
     public function rules(): array
     {
-        $jobFamily = $this->route('jobFamily');
-
         return [
-            'code' => ['required', 'string', 'max:20', Rule::unique('job_families', 'code')->ignore($jobFamily->id)],
-            'name' => ['required', 'string', 'max:100']
+            'name' => ['required', 'string', 'max:150'],
+            'is_ptpn_group' => ['required', 'boolean'],
         ];
     }
 }

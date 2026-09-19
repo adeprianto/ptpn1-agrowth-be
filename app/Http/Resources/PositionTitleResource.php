@@ -22,15 +22,15 @@ class PositionTitleResource extends JsonResource
                 'value' => $this->level_bod->value,
                 'label' => $this->level_bod->label()
             ]: null,
-            'job_family' => $this->whenLoaded('jobFamily', fn () => $this->jobFamily ? [
-                'id' =>$this->jobFamily->id,
-                'code' =>$this->jobFamily->code,
-                'name' =>$this->jobFamily->name,
+            'job_group' => $this->whenLoaded('jobGroup', fn () => $this->jobGroup ? [
+                'id' =>$this->jobGroup->id,
+                'code' =>$this->jobGroup->code,
+                'name' =>$this->jobGroup->name,
             ] : null),
-            'organization' => $this->whenLoaded('organization', fn () => $this->organizaion ? [
-                'id' =>$this->organization->id,
-                'code' =>$this->organization->code,
-                'name' =>$this->orgnazition->name,
+            'job_function' => $this->whenLoaded('jobFunction', fn () => $this->jobFunction ? [
+                'id' => $this->jobFunction->id,
+                'code' => $this->jobFunction->code,
+                'name' => $this->jobFunction->name,
             ] : null),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

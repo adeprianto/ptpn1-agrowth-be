@@ -17,5 +17,8 @@ Route::prefix('v1')->middleware('web')->group(function () {
         require __DIR__.'/api/v1/organizations.php';
         require __DIR__.'/api/v1/position-titles.php';
         // require __DIR__.'/api/v1/units.php';
+        require __DIR__.'/api/v1/organizers.php';
+        require __DIR__.'/api/v1/trainings.php';
+        require __DIR__.'/api/v1/training-realizations.php';
     });
 });

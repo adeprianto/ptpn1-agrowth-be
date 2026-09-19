@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('job_families', function (Blueprint $table) {
+        Schema::create('organizers', function (Blueprint $table) {
             $table->id();
-            $table->string('code', 30)->unique();
-            $table->string('name', 100);
+            $table->string('name', 150);
+            $table->boolean('is_ptpn_group')->default(false);
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('job_families');
+        Schema::dropIfExists('organizers');
     }
 };

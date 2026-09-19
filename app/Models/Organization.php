@@ -11,7 +11,7 @@ class Organization extends Model
 
     protected $fillable = [
         'code',
-        'nama',
+        'name',
         'level', 
         'organization_type_id', 
         'entity_id', 
@@ -46,10 +46,5 @@ class Organization extends Model
     public function children()
     {
         return $this->hasMany(Organization::class, 'parent_id');
-    }
-
-    public function positionTitles()
-    {
-        return $this->hasMany(PositionTitle::class);
     }
 }

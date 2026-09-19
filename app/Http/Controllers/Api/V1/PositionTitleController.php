@@ -18,23 +18,24 @@ class PositionTitleController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = PositionTitle::with(['jobFamily', 'organization']);
-
-        if ($organizationId = $request->query('organization_id')) {
-            $query->where('organizaion_id', '$organizationId');
+        $query = PositionTitle::with(['jobGroup', 'jobFunction']);
+        
+        if ($jobGroupId = $request->query('job_group_id')) {
+            $query->where('job_group_id', $jobGroupId);
         }
-
-        if ($jobFamilyId = $request->query('job_family_id')) {
-            $query->where('job_family_id', $jobFamilyId);
+        
+        if ($jobFunctionId = $request->query('job_function_id')) {
+            $query->where('job_function_id', $jobFunctionId);
         }
-
-        if ($request->query('unassigned') === '1') {
-            $query->whereNull('organization_id');
+        
+        if ($levelBod = $request->query('level_bod')) {
+            $query->where('level_bod', $levelBod);
         }
-
+        
         if ($search = $request->query('search')) {
-            $query->where(function ($q) use ($query, $search) {
-                $query->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%");
             });
         }
 
@@ -46,14 +47,14 @@ class PositionTitleController extends Controller
     public function store(StorePositionTitleRequest $request): JsonResponse
     {
         $positionTitle = PositionTitle::create($request->validated());
-        $positionTitle->load(['jobFamily', 'organization']);
+        $positionTitle->load(['jobGroup', 'jobFunction']);
 
         return $this->success(new PositionTitleResource($positionTitle), 'Position title berhasil dibuat', 201);
     }
 
     public function show(PositionTitle $positionTitle): JsonResponse
     {
-        $positionTitle->load(['jobFamily', 'organization']);
+        $positionTitle->load(['jobGroup', 'jobFunction']);
 
         return $this->success(new PositionTitleResource($positionTitle), 'Detail position title berhasil diambil');
     }
@@ -61,7 +62,7 @@ class PositionTitleController extends Controller
     public function update(UpdatePositionTitleRequest $request, PositionTitle $positionTitle): JsonResponse
     {
         $positionTitle->update($request->validated());
-        $positionTitle->load(['jobFamily', 'organization']);
+        $positionTitle->load(['jobGroup', 'jobFunction']);
 
         return $this->success(new PositionTitleResource($positionTitle), 'Position title berhasil diperbarui');
     }
