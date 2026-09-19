@@ -8,17 +8,19 @@ class MasterDataImport implements WithMultipleSheets
 {
     public function sheets(): array
     {
+        // Sheet 'employee' diimpor terpisah lewat `php artisan import:employees`
+        // supaya bisa dibaca per potongan dan tidak membebani memori.
+        // Sheet 'Cek Karyawan' dan 'Cek Job' tidak dipakai di sistem.
         return [
             'Business Types' => new BusinessTypeImport(),
-            'Operational Categories' => new operationalCategoryImport(),
+            'Operational Categories' => new OperationalCategoryImport(),
             'Entity' => new EntityImport(),
             'Entity Operationals' => new EntityOperationalImport(),
             'Komoditas' => new KomoditasImport(),
-            'Job Family' => new JobFamilyImport(),
             'Job Functions' => new JobFunctionImport(),
-            // 'Job Grade' => new JobGradeImport(),
-            // 'Struktur Organisasi' => new StructureOrganizationImport(),
-            // 'Positions' => new PositionImport(),  
+            'Job Group' => new JobGroupImport(),
+            'Struktur Organisasi' => new OrganizationImport(),
+            'Positions' => new PositionTitleImport(),
         ];
     }
 }

@@ -8,15 +8,21 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
 class JobFunctionImport implements ToModel, WithHeadingRow
 {
-    public function model(array $row)
+    public function model(array $rows)
     {
-        if (empty($row['code'])) {
-            return null;
-        }
+        $seen = [];
 
-        return new JobFunctions([
-            'code' => $row['code'],
-            'name' => $row['nama_fungsi'],
-        ]);
+        foreach ($rows as $row) {
+            $code = trim((string) ($row['code'] ?? ''));
+            $name = trim((string) ($row['nama_fungsinew'] ?? ''));
+
+            if ($code === '' || $name === '' || isset($seen[$code])) {
+                continue;
+            }
+
+            $seen[$code] = true;
+
+            JobFunctions::updateOrCreate(['code' => $code], ['name' => $name]);
+        }
     }
 }
