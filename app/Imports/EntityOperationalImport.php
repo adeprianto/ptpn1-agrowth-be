@@ -13,7 +13,9 @@ class EntityOperationalImport implements ToModel, WithHeadingRow
 {
     public function model(array $row)
     {
-        if (empty($row['eo_code']) || empty($row['entity_code'])) {
+        $code = trim((string) ($row['eo_code'] ?? ''));
+
+        if ($code === '' || empty($row['entity_code'])) {
             return null;
         }
 
@@ -61,11 +63,14 @@ class EntityOperationalImport implements ToModel, WithHeadingRow
             }
         }
 
-        return new EntityOperational([
-            'code' => $row['eo_code'],
-            'entity_id' => $entity->id,
-            'business_type_id' => $businessType?->id,
-            'operational_category_id' => $operationalCategory?->id,
-        ]);
+        // idempotent by code: aman dijalankan ulang tanpa menduplikasi
+        return EntityOperational::updateOrCreate(
+            ['code' => $code],
+            [
+                'entity_id' => $entity->id,
+                'business_type_id' => $businessType?->id,
+                'operational_category_id' => $operationalCategory?->id,
+            ],
+        );
     }
 }

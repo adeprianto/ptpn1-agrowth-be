@@ -26,22 +26,25 @@ class KomoditasImport implements ToModel, WithHeadingRow
             );
         }
 
-        return new Commodities([
-            'entity_operational_id' => $entityOperational->id,
+        // commodities 1-1 dengan entity_operational, jadi itu kuncinya.
+        // idempotent: aman dijalankan ulang tanpa menduplikasi.
+        return Commodities::updateOrCreate(
+            ['entity_operational_id' => $entityOperational->id],
+            [
+                'total_estate_area'   => $this->parseNumber($row['total_area'] ?? null),
+                'planted_area'        => $this->parseNumber($row['planted_area'] ?? null),
+                'immature_area'       => $this->parseNumber($row['immature_area'] ?? null),
+                'next_planting_area'  => $this->parseNumber($row['next_planting'] ?? null),
+                'non_productive_area' => $this->parseNumber($row['non_productive_area'] ?? null),
+                'other_area'          => $this->parseNumber($row['others_area'] ?? null),
 
-            'total_estate_area'   => $this->parseNumber($row['total_area'] ?? null),
-            'planted_area'        => $this->parseNumber($row['planted_area'] ?? null),
-            'immature_area'       => $this->parseNumber($row['immature_area'] ?? null),
-            'next_planting_area'  => $this->parseNumber($row['next_planting'] ?? null),
-            'non_productive_area' => $this->parseNumber($row['non_productive_area'] ?? null),
-            'other_area'          => $this->parseNumber($row['others_area'] ?? null),
+                'total_afdeling'      => $this->parseNumber($row['total_afdeling'] ?? null),
 
-            'total_afdeling'      => $this->parseNumber($row['total_afdeling'] ?? null),
-
-            'total_factory'       => $this->parseNumber($row['total_factory'] ?? null),
-            'factory_capacity_kg' => $this->parseNumber($row['factory_capacity'] ?? null),
-            'processed_product'   => $row['processed_product'] ?? null,
-        ]);
+                'total_factory'       => $this->parseNumber($row['total_factory'] ?? null),
+                'factory_capacity_kg' => $this->parseNumber($row['factory_capacity'] ?? null),
+                'processed_product'   => $row['processed_product'] ?? null,
+            ],
+        );
     }
 
     /**

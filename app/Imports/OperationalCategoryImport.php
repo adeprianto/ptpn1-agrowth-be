@@ -10,13 +10,16 @@ class OperationalCategoryImport implements ToModel, WithHeadingRow
 {
     public function model(array $row)
     {
-        if (empty($row['code'])) {
+        $code = trim((string) ($row['code'] ?? ''));
+
+        if ($code === '') {
             return null;
         }
 
-        return new OperationalCategories([
-            'code' => $row['code'],
-            'name' => $row['nama_kategori'],
-        ]);
+        // idempotent by code: aman dijalankan ulang tanpa menduplikasi
+        return OperationalCategories::updateOrCreate(
+            ['code' => $code],
+            ['name' => $row['nama_kategori'] ?? null],
+        );
     }
 }

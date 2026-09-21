@@ -8,21 +8,24 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
 class JobFunctionImport implements ToModel, WithHeadingRow
 {
-    public function model(array $rows)
+    public function model(array $row)
     {
-        $seen = [];
+        $code = trim((string) ($row['code'] ?? ''));
 
-        foreach ($rows as $row) {
-            $code = trim((string) ($row['code'] ?? ''));
-            $name = trim((string) ($row['nama_fungsinew'] ?? ''));
+        // Heading "nama_fungsi(new)" di-slug jadi "nama_fungsinew" (tanda kurung
+        // dibuang tanpa meninggalkan underscore). Ejaan lain ikut diterima
+        // supaya tidak diam-diam kosong kalau header Excel berubah.
+        $name = trim((string) (
+            $row['nama_fungsinew']
+            ?? $row['nama_fungsi_new']
+            ?? $row['nama_fungsi']
+            ?? ''
+        ));
 
-            if ($code === '' || $name === '' || isset($seen[$code])) {
-                continue;
-            }
-
-            $seen[$code] = true;
-
-            JobFunctions::updateOrCreate(['code' => $code], ['name' => $name]);
+        if ($code === '' || $name === '') {
+            return null;
         }
+
+        return JobFunctions::updateOrCreate(['code' => $code], ['name' => $name]);
     }
 }
