@@ -8,9 +8,11 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ImportMasterData extends Command
 {
-    protected $signature = 'import:master-data {file=template-data-master-sdm.xlsx : Nama file Excel di root project}';
+    protected $signature = 'import:master-data
+        {file=template-data-master-sdm.xlsx : Nama file Excel di root project}
+        {--only=* : Impor sheet tertentu saja, mis. --only="Job Group" --only=Positions}';
 
-    protected $description = 'Import master data dari file Excel';
+    protected $description = 'Import master data dari file Excel (idempotent, aman diulang)';
 
     public function handle(): int
     {
@@ -22,12 +24,28 @@ class ImportMasterData extends Command
             return self::FAILURE;
         }
 
-        $this->info('Memulai import master data, proses ini bisa memakan waktu beberapa menit...');
+        $only = (array) $this->option('only');
+        $available = MasterDataImport::availableSheets();
+        $unknown = array_diff($only, $available);
 
-        Excel::import(new MasterDataImport(), $path);
+        if ($unknown !== []) {
+            $this->error('Sheet tidak dikenal: '.implode(', ', $unknown));
+            $this->line('Pilihan yang tersedia: '.implode(', ', $available));
+
+            return self::FAILURE;
+        }
+
+        $this->info($only === []
+            ? 'Memulai import master data, proses ini bisa memakan waktu beberapa menit...'
+            : 'Memulai import sheet: '.implode(', ', $only));
+
+        Excel::import(new MasterDataImport($only), $path);
 
         $this->info('Master data berhasil diimport.');
-        $this->comment('Lanjutkan dengan: php artisan import:employees');
+
+        if ($only === []) {
+            $this->comment('Lanjutkan dengan: php artisan import:employees');
+        }
 
         return self::SUCCESS;
     }
