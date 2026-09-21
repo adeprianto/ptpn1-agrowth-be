@@ -16,9 +16,12 @@ class OrganizationController extends Controller
 {
     use ApiResponse;
 
+    // GET /api/v1/organizations
     public function index(Request $request): JsonResponse
     {
-        $query = Organization::with(['organizationType', 'entity', 'jobFunction', 'parent']);
+        // dibatasi cakupan akun lewat entity pemilik departemen
+        $query = Organization::with(['organizationType', 'entity', 'jobFunction', 'parent'])
+            ->whereIn('entity_id', $request->user()->accessibleEntityIds());
 
         if ($entityId = $request->query('entity_id')) {
             $query->where('entity_id', $entityId);
@@ -44,15 +47,17 @@ class OrganizationController extends Controller
 
         $organizations = $query->orderBy('level')->orderBy('name')->paginate($request->integer('per_page', 15));
 
-        return $this->success(OrganizationResource::collection($organizations), 'Daftar stukrtur organisasi berhasil diambil.');
+        return $this->successPaginated($organizations, OrganizationResource::class, 'Daftar struktur organisasi berhasil diambil');
     }
 
+    // GET /api/v1/organizations/tree - pohon departemen dalam satu entity
     public function tree(Request $request): JsonResponse
     {
-        $query = Organization::with(['organizationType', 'entity', 'jobFunction']);
+        $query = Organization::with(['organizationType', 'jobFunction'])
+            ->whereIn('entity_id', $request->user()->accessibleEntityIds());
 
         if ($entityId = $request->query('entity_id')) {
-            $query->where('entity_id' ,$entityId);
+            $query->where('entity_id', $entityId);
         }
 
         $organizations = $query->orderBy('level')->orderBy('name')->get();
@@ -60,6 +65,7 @@ class OrganizationController extends Controller
         return $this->success($this->buildTree($organizations, null), 'Struktur organisasi (tree) berhasil diambil.');
     }
 
+    // GET /api/v1/organizations/{organization}
     public function show(Organization $organization): JsonResponse
     {
         $organization->load(['organizationType', 'entity', 'jobFunction', 'parent'])
@@ -68,30 +74,47 @@ class OrganizationController extends Controller
         return $this->success(new OrganizationResource($organization), 'Detail organisasi berhasil diambil');
     }
 
+    // POST /api/v1/organizations
     public function store(StoreOrganizationRequest $request): JsonResponse
     {
-        $organization = Organization::create($request->validated());
+        $data = $request->validated();
+
+        abort_unless(
+            in_array((int) $data['entity_id'], $request->user()->accessibleEntityIds(), true),
+            403,
+            'Anda tidak memiliki akses ke entity tersebut.'
+        );
+
+        $organization = Organization::create($data);
         $organization->load(['organizationType', 'entity', 'jobFunction', 'parent']);
 
         return $this->success(new OrganizationResource($organization), 'Organisasi berhasil dibuat', 201);
     }
 
+    // PUT /api/v1/organizations/{organization}
     public function update(UpdateOrganizationRequest $request, Organization $organization): JsonResponse
     {
-        $organization->update($request->validated());
+        $data = $request->validated();
+
+        if (isset($data['entity_id'])) {
+            abort_unless(
+                in_array((int) $data['entity_id'], $request->user()->accessibleEntityIds(), true),
+                403,
+                'Anda tidak memiliki akses ke entity tersebut.'
+            );
+        }
+
+        $organization->update($data);
         $organization->load(['organizationType', 'entity', 'jobFunction', 'parent']);
 
         return $this->success(new OrganizationResource($organization), 'Organisasi berhasil diperbarui');
     }
 
+    // DELETE /api/v1/organizations/{organization}
     public function destroy(Organization $organization): JsonResponse
     {
         if ($organization->children()->exists()) {
-            return $this->error('Organisasi tidak bisa dihapus karena masih memiliki sub-organisasi', 409);
-        }
-
-        if ($organization->positionTitles()->exists()) {
-            return $this->error('Organisasi tidak bisa dihapus karena masih dipakai di position title', 409);
+            return $this->error('Departemen tidak bisa dihapus karena masih memiliki sub-departemen', 409);
         }
 
         $organization->delete();
@@ -110,22 +133,17 @@ class OrganizationController extends Controller
                 return [
                     'id' => $organization->id,
                     'code' => $organization->code,
-                    'nama' => $organization->nama,
+                    'name' => $organization->name,
                     'level' => $organization->level,
                     'organization_type' => $organization->organizationType ? [
                         'id' => $organization->organizationType->id,
                         'code' => $organization->organizationType->code,
-                        'nama' => $organization->organizationType->nama,
-                    ] : null,
-                    'entity' => $organization->entity ? [
-                        'id' => $organization->entity->id,
-                        'code' => $organization->entity->code,
-                        'nama' => $organization->entity->nama,
+                        'name' => $organization->organizationType->name,
                     ] : null,
                     'job_function' => $organization->jobFunction ? [
                         'id' => $organization->jobFunction->id,
                         'code' => $organization->jobFunction->code,
-                        'nama' => $organization->jobFunction->nama,
+                        'name' => $organization->jobFunction->name,
                     ] : null,
                     'children' => $this->buildTree($organizations, $organization->id),
                 ];

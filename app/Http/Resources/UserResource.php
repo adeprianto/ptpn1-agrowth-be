@@ -23,8 +23,8 @@ class UserResource extends JsonResource
             ]),
             'employee' => $this->whenLoaded('employee', fn () => [
                 'id' => $this->employee->id,
-                'nip' => $this->employee->nip,
-                'nama' => $this->employee->nama,
+                'nik' => $this->employee->nik,
+                'name' => $this->employee->name,
             ]),
             // 'email_verified_at' => $this->email_verified_at,
             // 'created_at' => $this->created_at,

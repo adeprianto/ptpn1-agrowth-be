@@ -10,13 +10,16 @@ class JobGradeImport implements ToModel, WithHeadingRow
 {
     public function model(array $row)
     {
-        if (empty($row['code'])) {
+        $code = trim((string) ($row['code'] ?? ''));
+
+        if ($code === '') {
             return null;
         }
 
-        return new JobGrades([
-            'code' => $row['code'],
-            'name' => $row['grade'],
-        ]);
+        // idempotent by code: aman dijalankan ulang tanpa menduplikasi
+        return JobGrades::updateOrCreate(
+            ['code' => $code],
+            ['name' => $row['grade'] ?? null],
+        );
     }
 }

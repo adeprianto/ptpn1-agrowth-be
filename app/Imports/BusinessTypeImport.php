@@ -10,13 +10,16 @@ class BusinessTypeImport implements ToModel, WithHeadingRow
 {
     public function model(array $row)
     {
-        if (empty($row['code'])) {
+        $code = trim((string) ($row['code'] ?? ''));
+
+        if ($code === '') {
             return null;
         }
 
-        return new BusinessTypes([
-            'code' => $row['code'],
-            'name' => $row['nama_komoditas'],
-        ]);
+        // idempotent by code: aman dijalankan ulang tanpa menduplikasi
+        return BusinessTypes::updateOrCreate(
+            ['code' => $code],
+            ['name' => $row['nama_komoditas'] ?? null],
+        );
     }
 }

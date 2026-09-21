@@ -12,7 +12,7 @@ class Employees extends Model
 
     protected $fillable = [
         'nik', 
-        'nama', 
+        'name',
         'gelar_depan', 
         'gelar_belakang',
         'tempat_lahir', 
@@ -58,15 +58,30 @@ class Employees extends Model
         return $this->belongsTo(EntityOperational::class, 'entity_operational_id');
     }
 
+    // riwayat keikutsertaan pelatihan (baris snapshot per peserta)
+    public function trainingRealizationDetails()
+    {
+        return $this->hasMany(TrainingRealizationDetails::class, 'employee_id');
+    }
+
     // === Derived attributes ===
 
     public function getNamaLengkapAttribute(): string
     {
-        return trim(implode(' ', array_filter([
-            $this->gelar_depan,
-            $this->nama,
-            $this->gelar_belakang,
-        ])));
+        // kolom name dari SAP kadang sudah memuat gelar, jadi gelar hanya ditambahkan kalau belum ada
+        $name = trim((string) $this->name);
+        $depan = trim((string) $this->gelar_depan);
+        $belakang = trim((string) $this->gelar_belakang);
+
+        if ($depan !== '' && ! str_starts_with(mb_strtolower($name), mb_strtolower($depan))) {
+            $name = "{$depan} {$name}";
+        }
+
+        if ($belakang !== '' && ! str_ends_with(mb_strtolower($name), mb_strtolower($belakang))) {
+            $name = "{$name} {$belakang}";
+        }
+
+        return $name;
     }
 
     public function getUsiaAttribute(): ?int
@@ -76,6 +91,9 @@ class Employees extends Model
 
     public function getMasaKerjaTahunAttribute(): ?int
     {
-        return $this->tanggal_acuan_masa_kerja?->diffInYears(Carbon::now());
+        // Carbon 3 mengembalikan float, dibulatkan ke bawah (tahun penuh)
+        $years = $this->tanggal_acuan_masa_kerja?->diffInYears(Carbon::now());
+
+        return $years === null ? null : (int) floor($years);
     }
 }

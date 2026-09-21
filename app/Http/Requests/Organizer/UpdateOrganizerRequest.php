@@ -2,29 +2,33 @@
 
 namespace App\Http\Requests\Organizer;
 
-use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Foundation\Http\FormRequest;
+use App\Enums\OrganizerType;
+use Illuminate\Validation\Rule;
 
-class UpdateOrganizerRequest extends FormRequest
+class UpdateOrganizerRequest extends StoreOrganizerRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
-    public function authorize(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'name' => ['sometiems','required', 'string', 'max:150'],
-            'is_ptpn_group' => ['sometimes','required', 'boolean'],
+            ...parent::rules(),
+            'name' => ['sometimes', 'required', 'string', 'max:150'],
+            'type' => ['sometimes', 'required', Rule::enum(OrganizerType::class)],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        // status tidak dipaksa ACTIVE saat update
+    }
+
+    public function validatedWithFlags(): array
+    {
+        $data = $this->validated();
+
+        if (isset($data['type'])) {
+            $data['is_ptpn_group'] = OrganizerType::from($data['type'])->isPtpnGroup();
+        }
+
+        return $data;
     }
 }
