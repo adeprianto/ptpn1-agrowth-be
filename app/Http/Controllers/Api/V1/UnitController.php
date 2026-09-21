@@ -2,67 +2,236 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\EntityType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Unit\StoreUnitRequest;
+use App\Http\Requests\Unit\UpdateUnitRequest;
 use App\Http\Resources\UnitListResource;
+use App\Models\Employees;
 use App\Models\Entities;
+use App\Models\EntityOperational;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class UnitController extends Controller
 {
     use ApiResponse;
 
+    // GET /api/v1/units
     public function index(Request $request): JsonResponse
     {
-        $query = Entities::query()->where('type', 'UNIT')->with([
-            'parent:id,code,name',
-            'entityOperationals.operationalCategory',
-            'entityOperationals.businessType',
-        ]);
+        $query = Entities::query()
+            ->where('type', 'UNIT')
+            ->whereIn('id', $request->user()->accessibleEntityIds())
+            ->with([
+                'parent:id,code,name',
+                'operationals.operationalCategory',
+                'operationals.businessType',
+            ])
+            ->addSelect(['entities.*', 'jumlah_karyawan' => $this->employeeCountSubquery()]);
 
         if ($regionalId = $request->query('regional_id')) {
             $query->where('parent_id', $regionalId);
         }
 
         if ($operationalCategoryId = $request->query('operational_category_id')) {
-            $query->whereHas('entityOperationals', function ($q) use ($operationalCategoryId) {
+            $query->whereHas('operationals', function ($q) use ($operationalCategoryId) {
                 $q->where('operational_category_id', $operationalCategoryId);
             });
         }
 
         if ($businessTypeId = $request->query('business_type_id')) {
-            $query->whereHas('entityOperationals', function ($q) use ($businessTypeId) {
+            $query->whereHas('operationals', function ($q) use ($businessTypeId) {
                 $q->where('business_type_id', $businessTypeId);
             });
         }
 
         if ($search = $request->query('search')) {
-            $query->where('name', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('code', 'like', "%{$search}%");
+            });
         }
 
         $units = $query->orderBy('name')->paginate($request->integer('per_page', 15));
 
-        return $this->success(UnitListResource::collection($units),  'Daftar unit berhasil diambil');
+        return $this->successPaginated($units, UnitListResource::class, 'Daftar unit berhasil diambil');
     }
 
-    public function summary(): JsonResponse
+    // GET /api/v1/units/summary - 3 card di atas tabel
+    public function summary(Request $request): JsonResponse
     {
-        $totalUnit = Entities::where('type', 'UNIT')->count();
+        $units = Entities::query()
+            ->where('type', 'UNIT')
+            ->whereIn('id', $request->user()->accessibleEntityIds());
 
-        $totalPabrik = Entities::where('type', 'UNIT')
-        ->whereHas('entityOperationals.operationalCategory', fn ($q) => $q->where('code', 'PABRIK'))
-        ->count();
-        
-        $totalKebun = Entities::where('type', 'UNIT')
-        ->whereHas('entityOperationals.operationalCategory', fn ($q) => $q->where('code', 'KEBUN'))
-        ->count();
+        $countByCategory = fn (string $code) => (clone $units)
+            ->whereHas('operationals.operationalCategory', fn ($q) => $q->where('code', $code))
+            ->count();
 
         return $this->success([
-            'total_unit' => $totalUnit,
-            'total_pabrik' => $totalPabrik,
-            'total_kebun' => $totalKebun,
-            'total_karyawan' => 0,
+            'total_unit' => (clone $units)->count(),
+            'total_kebun' => $countByCategory('EST'),
+            'total_pabrik' => $countByCategory('FAC'),
+            'total_karyawan' => Employees::whereIn('entity_id', (clone $units)->select('id'))->count(),
         ], 'Ringkasan unit berhasil diambil');
+    }
+
+    // GET /api/v1/units/{unit}
+    public function show(Entities $unit): JsonResponse
+    {
+        abort_unless($unit->type === 'UNIT', 404, 'Unit tidak ditemukan.');
+
+        return $this->success($this->showResource($unit->id), 'Detail unit berhasil diambil');
+    }
+
+    // POST /api/v1/units
+    public function store(StoreUnitRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        abort_unless(
+            in_array((int) $data['parent_id'], $request->user()->accessibleEntityIds(), true),
+            403,
+            'Anda tidak memiliki akses ke regional tersebut.'
+        );
+
+        $unit = DB::transaction(function () use ($data) {
+            $unit = Entities::create([
+                'parent_id' => $data['parent_id'],
+                'code' => $data['code'],
+                'name' => $data['name'],
+                'status' => $data['status'],
+                'type' => 'UNIT',
+                'level' => EntityType::UNIT->defaulLevel(),
+            ]);
+
+            $this->syncOperationals($unit, $data['operationals'] ?? []);
+
+            return $unit;
+        });
+
+        return $this->success($this->showResource($unit->id), 'Unit berhasil dibuat', 201);
+    }
+
+    // PUT /api/v1/units/{unit}
+    public function update(UpdateUnitRequest $request, Entities $unit): JsonResponse
+    {
+        abort_unless($unit->type === 'UNIT', 404, 'Unit tidak ditemukan.');
+
+        $data = $request->validated();
+
+        if (isset($data['parent_id'])) {
+            abort_unless(
+                in_array((int) $data['parent_id'], $request->user()->accessibleEntityIds(), true),
+                403,
+                'Anda tidak memiliki akses ke regional tersebut.'
+            );
+        }
+
+        DB::transaction(function () use ($unit, $data, $request) {
+            $unit->update(collect($data)->only(['parent_id', 'code', 'name', 'status'])->all());
+
+            // operationals hanya disentuh kalau field-nya ikut dikirim
+            if ($request->has('operationals')) {
+                $this->syncOperationals($unit, $data['operationals'] ?? []);
+            }
+        });
+
+        return $this->success($this->showResource($unit->id), 'Unit berhasil diperbarui');
+    }
+
+    // DELETE /api/v1/units/{unit}
+    public function destroy(Entities $unit): JsonResponse
+    {
+        abort_unless($unit->type === 'UNIT', 404, 'Unit tidak ditemukan.');
+
+        if (Employees::where('entity_id', $unit->id)->exists()) {
+            return $this->error('Unit tidak bisa dihapus karena masih memiliki pegawai.', 409);
+        }
+
+        if ($unit->users()->exists()) {
+            return $this->error('Unit tidak bisa dihapus karena masih memiliki user.', 409);
+        }
+
+        // baris operasional + detail komoditasnya ikut terhapus (cascadeOnDelete)
+        $unit->delete();
+
+        return $this->success(null, 'Unit berhasil dihapus');
+    }
+
+    /**
+     * Samakan baris entity_operationals dengan daftar yang dikirim.
+     * Pasangan yang sudah ada dipertahankan supaya detail komoditas (luas lahan dll)
+     * tidak ikut hilang; yang tidak ada di daftar baru dihapus.
+     *
+     * @param  array<int, array{operational_category_id: int, business_type_id?: int|null}>  $rows
+     */
+    private function syncOperationals(Entities $unit, array $rows): void
+    {
+        $existing = $unit->operationals()->get();
+        $keyOf = fn ($categoryId, $businessTypeId) => $categoryId.'-'.($businessTypeId ?? '');
+
+        $keptIds = [];
+
+        foreach ($rows as $row) {
+            $key = $keyOf($row['operational_category_id'], $row['business_type_id'] ?? null);
+            $match = $existing->first(
+                fn ($eo) => $keyOf($eo->operational_category_id, $eo->business_type_id) === $key
+            );
+
+            if ($match) {
+                $keptIds[] = $match->id;
+
+                continue;
+            }
+
+            $created = EntityOperational::create([
+                'code' => $this->nextOperationalCode(),
+                'entity_id' => $unit->id,
+                'operational_category_id' => $row['operational_category_id'],
+                'business_type_id' => $row['business_type_id'] ?? null,
+            ]);
+
+            $keptIds[] = $created->id;
+        }
+
+        $unit->operationals()->whereNotIn('id', $keptIds ?: [0])->delete();
+    }
+
+    // kode entity_operationals digenerate sistem: EO0001, EO0002, ...
+    private function nextOperationalCode(): string
+    {
+        $last = EntityOperational::where('code', 'like', 'EO%')
+            ->orderByRaw('CAST(SUBSTRING(code, 3) AS UNSIGNED) DESC')
+            ->value('code');
+
+        $next = $last ? ((int) substr($last, 2)) + 1 : 1;
+
+        return 'EO'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function showResource(int $id): UnitListResource
+    {
+        $unit = Entities::query()
+            ->whereKey($id)
+            ->with([
+                'parent:id,code,name',
+                'operationals.operationalCategory',
+                'operationals.businessType',
+            ])
+            ->addSelect(['entities.*', 'jumlah_karyawan' => $this->employeeCountSubquery()])
+            ->first();
+
+        return new UnitListResource($unit);
+    }
+
+    private function employeeCountSubquery()
+    {
+        return Employees::query()
+            ->selectRaw('count(*)')
+            ->whereColumn('employees.entity_id', 'entities.id');
     }
 }

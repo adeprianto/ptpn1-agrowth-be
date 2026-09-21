@@ -74,6 +74,15 @@ class Entities extends Model
         return $result;
     }
 
+    public function scopeAccessibleBy($query, User $user)
+    {
+        if ($user->entity?->type === 'HEAD_OFFICE') {
+            return $query; // HO gak difilter sama sekali
+        }
+    
+        return $query->whereIn('id', $user->accessibleEntityIds());
+    }
+
     // === Relasi ke struktur organisasi yang menempel di entity ini ===
     public function structureOrganizations()
     {

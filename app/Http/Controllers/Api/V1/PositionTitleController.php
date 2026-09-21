@@ -41,7 +41,7 @@ class PositionTitleController extends Controller
 
         $postionTitles = $query->orderBy('name')->paginate($request->integer('per_page', 20));
 
-        return $this->success(PositionTitleResource::collection($postionTitles), 'Daftar position title berhasil diambil');
+        return $this->successPaginated($postionTitles, PositionTitleResource::class, 'Daftar position title berhasil diambil');
     }
 
     public function store(StorePositionTitleRequest $request): JsonResponse

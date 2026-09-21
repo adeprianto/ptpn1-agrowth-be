@@ -18,6 +18,7 @@ class OrganizationResource extends JsonResource
             'id' => $this->id,
             'code' => $this->code,
             'name' => $this->name,
+            'level' => $this->level,
             'organization_type' => $this->whenLoaded('organizationType', fn () => [
                 'id' => $this->organizationType->id,
                 'code' => $this->organizationType->code,

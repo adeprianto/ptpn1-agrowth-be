@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Entity\StoreEntityRequest;
 use App\Http\Requests\Entity\UpdateEntityRequest;
+use App\Enums\EntityType;
 use App\Http\Resources\EntityResource;
+use App\Models\Employees;
 use App\Models\Entities;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +20,10 @@ class EntityController extends Controller
     // GET /api/v1/entities
     public function index(Request $request): JsonResponse
     {
-        $query = Entities::query()->withCount('children');
+        // dibatasi cakupan akun: akun Regional/Unit tidak melihat entity di luar hierarkinya
+        $query = Entities::query()
+            ->withCount('children')
+            ->whereIn('id', $request->user()->accessibleEntityIds());
 
         if ($request->filled('type')) {
             $query->where('type', $request->input('type'));
@@ -52,16 +57,62 @@ class EntityController extends Controller
         return $this->successPaginated($entities, EntityResource::class, 'Data entity berhasil diambil');
     }
 
-    // GET /api/v1/entities/tree - struktur HO > Regional > Unit sekaligus
-    public function tree(): JsonResponse
+    // GET /api/v1/entities/tree - struktur HO > Regional > Unit sekaligus (halaman Struktur Organisasi)
+    // Di-scope sesuai akun: akun Regional hanya dapat pohon regionalnya sendiri.
+    public function tree(Request $request): JsonResponse
     {
-        $roots = Entities::query()
-            ->whereNull('parent_id')
-            ->with('children.children')
-            ->orderBy('name')
+        $accessibleIds = $request->user()->accessibleEntityIds();
+
+        $entities = Entities::query()
+            ->whereIn('id', $accessibleIds)
+            ->with('operationals.operationalCategory')
+            ->addSelect([
+                'entities.*',
+                'jumlah_karyawan' => Employees::query()
+                    ->selectRaw('count(*)')
+                    ->whereColumn('employees.entity_id', 'entities.id'),
+            ])
+            ->orderBy('level')
+            ->orderBy('code')
             ->get();
 
-        return $this->success(EntityResource::collection($roots), 'Struktur hierarki entity berhasil diambil');
+        $byParent = $entities->groupBy(fn ($e) => $e->parent_id ?? 0);
+
+        $build = function (Entities $entity) use (&$build, $byParent): array {
+            $children = ($byParent[$entity->id] ?? collect())
+                ->map(fn ($child) => $build($child))
+                ->values();
+
+            return [
+                'id' => $entity->id,
+                'parent_id' => $entity->parent_id,
+                'level' => $entity->level,
+                'type' => $entity->type,
+                'type_label' => EntityType::tryFrom($entity->type)?->label(),
+                'code' => $entity->code,
+                'name' => $entity->name,
+                'status' => $entity->status,
+                'jenis' => $entity->operationals
+                    ->pluck('operationalCategory')
+                    ->filter()
+                    ->unique('id')
+                    ->map(fn ($c) => ['id' => $c->id, 'code' => $c->code, 'name' => $c->name])
+                    ->values(),
+                // pegawai yang ditempatkan langsung di entity ini
+                'jumlah_karyawan' => (int) $entity->jumlah_karyawan,
+                // termasuk seluruh entity di bawahnya
+                'total_karyawan' => (int) $entity->jumlah_karyawan + $children->sum('total_karyawan'),
+                'children' => $children,
+            ];
+        };
+
+        // root = entity yang induknya di luar cakupan akun (HO untuk akun HO, Regional untuk akun Regional)
+        $roots = $entities
+            ->filter(fn ($e) => $e->parent_id === null || ! in_array($e->parent_id, $accessibleIds, true))
+            ->map(fn ($root) => $build($root))
+            ->values();
+
+        return $this->success($roots, 'Struktur hierarki entity berhasil diambil');
     }
 
     // GET /api/v1/entities/{entity}

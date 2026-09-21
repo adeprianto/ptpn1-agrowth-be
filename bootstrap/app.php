@@ -15,6 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
+
+        $middleware->alias([
+            'entity.access' => \App\Http\Middleware\EnsureEntityAccess::class,
+        ]);
+
+        // DevAutoLogin sudah dilepas: auth frontend (Sanctum SPA) sudah jalan.
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (AuthenticationException $e, Request $request) {
