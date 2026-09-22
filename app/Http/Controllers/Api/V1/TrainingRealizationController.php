@@ -8,6 +8,7 @@ use App\Http\Requests\TrainingRealization\UpdateTrainingRealizationRequest;
 use App\Http\Resources\TrainingRealizationResource;
 use App\Models\TrainingRealizations;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,44 +16,52 @@ class TrainingRealizationController extends Controller
 {
     use ApiResponse;
 
+    // GET /api/v1/training-realizations
     public function index(Request $request): JsonResponse
     {
-        $query = TrainingRealizations::with('training.organizer');
+        $query = TrainingRealizations::with('training.vendor')->withCount('details');
 
         if ($trainingId = $request->query('training_id')) {
             $query->where('training_id', $trainingId);
         }
 
+        foreach (['year', 'month', 'learning_method', 'financing_category', 'cost_allocation'] as $filter) {
+            if ($value = $request->query($filter)) {
+                $query->where($filter, $value);
+            }
+        }
+
         if ($startDate = $request->query('start_date')) {
-            $query->whereDate('training_start_date', '>=', $startDate);
+            $query->whereDate('start_date', '>=', $startDate);
         }
 
         if ($endDate = $request->query('end_date')) {
-            $query->whereDate('training_end_date', '<=', $endDate);
+            $query->whereDate('end_date', '<=', $endDate);
         }
-
-        // hanya realisasi yang punya peserta dari entity yang boleh diakses user
-        $accessibleIds = $request->user()->accessibleEntityIds();
-        $query->whereHas('details', fn ($q) => $q->whereIn('entity_id', $accessibleIds));
 
         if ($search = $request->query('search')) {
-            $query->where('training_name', 'like', "%{$search}%");
+            $query->whereHas('training', fn ($q) => $q->where('name', 'like', "%{$search}%"));
         }
 
+        $this->scopeToAccessibleEntities($query, $request);
+
         $realizations = $query
-            ->orderByDesc('training_start_date')
+            ->orderByDesc('start_date')
             ->paginate($request->integer('per_page', 20));
 
-        return $this->success(
-            TrainingRealizationResource::collection($realizations),
+        return $this->successPaginated(
+            $realizations,
+            TrainingRealizationResource::class,
             'Daftar realisasi pelatihan berhasil diambil'
         );
     }
 
+    // POST /api/v1/training-realizations
     public function store(StoreTrainingRealizationRequest $request): JsonResponse
     {
+        // kolom total_* tidak ikut dikirim: nilainya nol sampai ada detail peserta
         $realization = TrainingRealizations::create($request->validated());
-        $realization->load('training.organizer');
+        $realization->load('training.vendor')->loadCount('details');
 
         return $this->success(
             new TrainingRealizationResource($realization),
@@ -61,9 +70,14 @@ class TrainingRealizationController extends Controller
         );
     }
 
+    // GET /api/v1/training-realizations/{trainingRealization}
     public function show(TrainingRealizations $trainingRealization): JsonResponse
     {
-        $trainingRealization->load(['training.organizer', 'details']);
+        $trainingRealization->load([
+            'training.vendor',
+            'details.employee.positionTitle',
+            'details.employee.entity',
+        ])->loadCount('details');
 
         return $this->success(
             new TrainingRealizationResource($trainingRealization),
@@ -71,12 +85,13 @@ class TrainingRealizationController extends Controller
         );
     }
 
+    // PUT /api/v1/training-realizations/{trainingRealization}
     public function update(
         UpdateTrainingRealizationRequest $request,
         TrainingRealizations $trainingRealization
     ): JsonResponse {
         $trainingRealization->update($request->validated());
-        $trainingRealization->load('training.organizer');
+        $trainingRealization->load('training.vendor')->loadCount('details');
 
         return $this->success(
             new TrainingRealizationResource($trainingRealization),
@@ -84,11 +99,33 @@ class TrainingRealizationController extends Controller
         );
     }
 
+    // DELETE /api/v1/training-realizations/{trainingRealization}
     public function destroy(TrainingRealizations $trainingRealization): JsonResponse
     {
-        // detail ikut terhapus lewat cascadeOnDelete
+        if ($trainingRealization->details()->exists()) {
+            return $this->error(
+                'Realisasi tidak bisa dihapus karena masih memiliki peserta. Hapus dulu daftar pesertanya.',
+                409
+            );
+        }
+
         $trainingRealization->delete();
 
         return $this->success(null, 'Realisasi pelatihan berhasil dihapus');
+    }
+
+    /**
+     * Realisasi hanya boleh dilihat kalau ada peserta dari entity yang dicakup
+     * akun ini. Realisasi yang belum punya peserta tetap ditampilkan supaya
+     * data yang baru dibuat tidak langsung hilang dari daftar.
+     */
+    private function scopeToAccessibleEntities(Builder $query, Request $request): void
+    {
+        $accessibleIds = $request->user()->accessibleEntityIds();
+
+        $query->where(function ($q) use ($accessibleIds) {
+            $q->whereDoesntHave('details')
+                ->orWhereHas('details.employee', fn ($e) => $e->whereIn('entity_id', $accessibleIds));
+        });
     }
 }

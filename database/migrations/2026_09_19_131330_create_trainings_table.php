@@ -12,15 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('trainings', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->text('nama');
-            $table->string('jenis_psdm');
-            $table->string('kompetensi');
-            $table->string('bidang');
-            $table->text('deskripsi')->nullable();
+            $table->id();
+            $table->bigInteger('vendor_id')->unsigned()->nullable();
+            $table->text('name');
+            $table->string('hr_development_type');
+            $table->string('competency_type');
+            $table->string('learning_sector');
+            $table->text('description')->nullable();
+            $table->boolean('status')->default(true);
             $table->timestamps();
 
-            $table->foreignUuid('vendor_id')->nullable()->constrained('vendors')->nullOnDelete()->cascadeOnUpdate();
+            $table->foreign('vendor_id')->references('id')->on('vendors')->nullOnDelete()->cascadeOnUpdate();
         });
     }
 

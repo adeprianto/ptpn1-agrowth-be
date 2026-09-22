@@ -5,7 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class OrganizerResource extends JsonResource
+class VendorResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -17,10 +17,9 @@ class OrganizerResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'type' => $this->type?->value,
-            'type_label' => $this->type?->label(),
-            'is_ptpn_group' => $this->is_ptpn_group,
-            'status' => $this->status,
+            'classification' => $this->classification?->value,
+            'classification_label' => $this->classification?->label(),
+            'is_lpp' => $this->is_lpp,
 
             'phone' => $this->phone,
             'email' => $this->email,
@@ -33,7 +32,9 @@ class OrganizerResource extends JsonResource
             'pic_email' => $this->pic_email,
             'pic_position' => $this->pic_position,
 
-            'trainings_count' => $this->whenCounted('trainings'),
+            'status' => $this->status,
+
+//            'trainings_count' => $this->whenCounted('trainings'),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -17,25 +17,39 @@ class TrainingRealizationDetailResource extends JsonResource
         return [
             'id' => $this->id,
             'training_realization_id' => $this->training_realization_id,
-            'training_start_date' => $this->training_start_date?->toDateString(),
-            'training_end_date' => $this->training_end_date?->toDateString(),
-            'learning_hours' => $this->learning_hours,
-            'cost' => $this->cost,
-
-            // nilai saat pelatihan berlangsung
-            'employee_name' => $this->employee_name,
-            'employee_position' => $this->employee_position,
-            'employee_bod_level' => $this->employee_bod_level,
-            'employee_unit' => $this->employee_unit,
-            'employee_division' => $this->employee_division,
-            'employee_region' => $this->employee_region,
-
-            // referensi ke data master saat ini (bisa null bila sudah dihapus)
             'employee_id' => $this->employee_id,
-            'position_title_id' => $this->position_title_id,
-            'entity_id' => $this->entity_id,
-            'organization_id' => $this->organization_id,
-
+            'employee' => $this->whenLoaded('employee', fn () => $this->employee ? [
+                'id' => $this->employee->id,
+                'nik' => $this->employee->nik,
+                'name' => $this->employee->name,
+                'jabatan' => $this->employee->relationLoaded('positionTitle') && $this->employee->positionTitle ? [
+                    'id' => $this->employee->positionTitle->id,
+                    'code' => $this->employee->positionTitle->code,
+                    'name' => $this->employee->positionTitle->name,
+                    'level_bod' => $this->employee->positionTitle->level_bod?->value,
+                ] : null,
+                'entity' => $this->employee->relationLoaded('entity') && $this->employee->entity ? [
+                    'id' => $this->employee->entity->id,
+                    'type' => $this->employee->entity->type,
+                    'code' => $this->employee->entity->code,
+                    'name' => $this->employee->entity->name,
+                ] : null,
+            ] : null),
+            'year' => $this->year,
+            'month' => $this->month,
+            'start_date' => $this->start_date?->toDateString(),
+            'end_date' => $this->end_date?->toDateString(),
+            'duration_days' => $this->duration_days,
+            'learning_hours_per_day' => $this->learning_hours_per_day,
+            'experiental_learning_hours' => $this->experiental_learning_hours,
+            'social_learning_hours' => $this->social_learning_hours,
+            'formal_learning_hours' => $this->formal_learning_hours,
+            'duration_learning_hours' => $this->duration_learning_hours,
+            'learning_cost' => $this->learning_cost,
+            'transport_cost' => $this->transport_cost,
+            'perdiem_cost' => $this->perdiem_cost,
+            'travel_expense_cost' => $this->travel_expense_cost,
+            'total_cost' => $this->total_cost,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

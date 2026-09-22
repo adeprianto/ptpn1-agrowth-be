@@ -12,23 +12,22 @@ class Trainings extends Model
     protected $table = 'trainings';
 
     protected $fillable = [
-        'name', 
-        'activity_type', 
-        'learning_sector', 
-        'learning_type',
-        'learning_hours', 
-        'cost', 
-        'organizer_id',
+        'vendor_id',
+        'name',
+        'hr_development_type',
+        'competency_type',
+        'learning_sector',
+        'description',
+        'status',
     ];
 
     protected $casts = [
-        'learning_hours' => 'integer',
-        'cost' => 'integer',
+        'status' => 'boolean',
     ];
 
-    public function organizer()
+    public function vendor()
     {
-        return $this->belongsTo(Organizers::class, 'organizer_id');
+        return $this->belongsTo(Vendor::class, 'vendor_id');
     }
 
     public function realizations()

@@ -7,29 +7,42 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreTrainingRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:200'],
-            'activity_type' => ['nullable', 'string', 'max:50'],
-            'learning_sector' => ['nullable', 'string', 'max:50'],
-            'learning_type' => ['nullable', 'string', 'max:50'],
-            'learning_hours' => ['required', 'integer', 'min:0'],
-            'cost' => ['required', 'integer', 'min:0'],
-            'organizer_id' => ['nullable', 'exists:organizers,id'],
+            'vendor_id' => ['nullable', 'exists:vendors,id'],
+            'name' => ['required', 'string'],
+            'hr_development_type' => ['required', 'string', 'max:255'],
+            'competency_type' => ['required', 'string', 'max:255'],
+            'learning_sector' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'status' => ['nullable', 'boolean'],
+        ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('status')) {
+            $this->merge(['status' => true]);
+        }
+    }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'Nama pelatihan wajib diisi.',
+            'hr_development_type.required' => 'Jenis pengembangan SDM wajib dipilih.',
+            'competency_type.required' => 'Jenis kompetensi wajib dipilih.',
+            'learning_sector.required' => 'Bidang pembelajaran wajib dipilih.',
+            'vendor_id.exists' => 'Penyelenggara pelatihan tidak ditemukan.',
         ];
     }
 }

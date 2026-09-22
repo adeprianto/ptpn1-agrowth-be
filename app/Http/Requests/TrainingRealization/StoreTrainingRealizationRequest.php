@@ -7,26 +7,43 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreTrainingRealizationRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
+     * Kolom total_* sengaja tidak divalidasi di sini: nilainya selalu dihitung
+     * ulang dari detail peserta lewat TrainingRealizations::recalculateTotals().
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'training_name' => ['required', 'string', 'max:200'],
             'training_id' => ['nullable', 'exists:trainings,id'],
-            'training_start_date' => ['required', 'date'],
-            'training_end_date' => ['required', 'date', 'after_or_equal:training_start_date'],
+            'learning_method' => ['required', 'string', 'max:255'],
+            'learning_location' => ['nullable', 'string'],
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'month' => ['required', 'integer', 'min:1', 'max:12'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'duration_days' => ['required', 'integer', 'min:0'],
+            'learning_hours_per_day' => ['required', 'integer', 'min:0'],
+            'financing_category' => ['required', 'string', 'max:255'],
+            'cost_allocation' => ['required', 'string', 'max:255'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'training_id.exists' => 'Pelatihan tidak ditemukan.',
+            'learning_method.required' => 'Metode pembelajaran wajib dipilih.',
+            'start_date.required' => 'Tanggal mulai wajib diisi.',
+            'end_date.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
+            'financing_category.required' => 'Kategori pembiayaan wajib dipilih.',
+            'cost_allocation.required' => 'Alokasi pembiayaan wajib dipilih.',
         ];
     }
 }

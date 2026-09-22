@@ -29,7 +29,7 @@ class UserSeeder extends Seeder
 
         // Hash dihitung sekali lalu dipakai ulang. Kalau di-hash per akun,
         // 219 kali bcrypt bikin seeder ini jalan puluhan detik.
-        $password = Hash::make('password');
+        $password = Hash::make('123456');
 
         $created = [
             'HEAD_OFFICE' => 0,

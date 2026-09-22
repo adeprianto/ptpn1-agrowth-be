@@ -2,25 +2,37 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use App\Enums\VendorType;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Vendor extends Model
 {
-    use HasUuids;
+    use HasFactory;
 
     protected $fillable = [
-        'nama',
-        'klasifikasi',
+        'name',
+        'classification',
         'is_lpp',
-        'telp',
+        'phone',
         'email',
         'website',
-        'kota',
-        'alamat',
-        'nama_pic',
-        'telp_pic',
-        'email_pic',
-        'jabatan_pic',
+        'city',
+        'address',
+        'pic_name',
+        'pic_phone',
+        'pic_email',
+        'pic_position',
+        'status',
     ];
+
+    protected $casts = [
+        'is_lpp' => 'boolean',
+        'classification' => VendorType::class,
+    ];
+
+    public function trainings()
+    {
+        return $this->hasMany(Trainings::class, 'vendor_id');
+    }
 }

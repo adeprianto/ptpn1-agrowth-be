@@ -11,6 +11,7 @@ use App\Http\Resources\UnitListResource;
 use App\Models\Employees;
 use App\Models\Entities;
 use App\Traits\ApiResponse;
+use App\Traits\ListQuery;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,15 @@ use Illuminate\Http\Request;
 class RegionalController extends Controller
 {
     use ApiResponse;
+    use ListQuery;
+
+    /** Kolom yang boleh dipakai mengurutkan (nama dari frontend -> kolom database). */
+    private const SORTABLE = [
+        'name' => 'entities.name',
+        'code' => 'entities.code',
+        'jumlah_unit' => 'jumlah_unit',
+        'jumlah_karyawan' => 'jumlah_karyawan',
+    ];
 
     // GET /api/v1/regionals
     public function index(Request $request): JsonResponse
@@ -28,6 +38,7 @@ class RegionalController extends Controller
                 ->whereIn('id', $request->user()->accessibleEntityIds())
         );
 
+        // Pencarian gabungan nama + kode
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
@@ -35,7 +46,13 @@ class RegionalController extends Controller
             });
         }
 
-        $regionals = $query->orderBy('code')->paginate($request->integer('per_page', 15));
+        // Kotak cari di bawah judul kolom
+        $this->applyLike($query, $request, 'name', 'entities.name');
+        $this->applyLike($query, $request, 'code', 'entities.code');
+
+        $this->applySort($query, $request, self::SORTABLE, 'entities.code');
+
+        $regionals = $query->paginate($request->integer('per_page', 15));
 
         return $this->successPaginated($regionals, RegionalResource::class, 'Daftar regional berhasil diambil');
     }

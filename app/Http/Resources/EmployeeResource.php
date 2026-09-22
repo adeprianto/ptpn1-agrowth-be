@@ -74,15 +74,17 @@ class EmployeeResource extends JsonResource
             // hanya di detail (GET /employees/{id})
             'pelatihan' => $this->whenLoaded('trainingRealizationDetails', fn () => [
                 'total_diikuti' => $this->trainingRealizationDetails->count(),
-                'total_jam' => (float) $this->trainingRealizationDetails->sum('learning_hours'),
+                'total_jam' => (float) $this->trainingRealizationDetails->sum('duration_learning_hours'),
+                'total_biaya' => (int) $this->trainingRealizationDetails->sum('total_cost'),
                 'riwayat' => $this->trainingRealizationDetails->map(fn ($d) => [
                     'id' => $d->id,
-                    'nama' => $d->realization?->training_name ?? $d->training?->name,
-                    'penyelenggara' => $d->training?->organizer?->name,
-                    'tanggal_mulai' => $d->training_start_date?->toDateString(),
-                    'tanggal_selesai' => $d->training_end_date?->toDateString(),
-                    'jam' => (float) $d->learning_hours,
-                    'status' => $d->training_end_date && $d->training_end_date->isFuture() ? 'Berjalan' : 'Selesai',
+                    'nama' => $d->realization?->training?->name,
+                    'penyelenggara' => $d->realization?->training?->vendor?->name,
+                    'tanggal_mulai' => $d->start_date?->toDateString(),
+                    'tanggal_selesai' => $d->end_date?->toDateString(),
+                    'jam' => (float) $d->duration_learning_hours,
+                    'biaya' => (int) $d->total_cost,
+                    'status' => $d->end_date && $d->end_date->isFuture() ? 'Berjalan' : 'Selesai',
                 ])->values(),
             ]),
         ];

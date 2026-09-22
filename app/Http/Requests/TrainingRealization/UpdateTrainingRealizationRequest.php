@@ -2,31 +2,21 @@
 
 namespace App\Http\Requests\TrainingRealization;
 
-use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Foundation\Http\FormRequest;
-
-class UpdateTrainingRealizationRequest extends FormRequest
+class UpdateTrainingRealizationRequest extends StoreTrainingRealizationRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
-    public function authorize(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'training_name' => ['sometimes','required', 'string', 'max:200'],
-            'training_id' => ['nullable', 'exists:trainings,id'],
-            'training_start_date' => ['sometimes','required', 'date'],
-            'training_end_date' => ['sometimes','required', 'date', 'after_or_equal:training_start_date'],
+            ...parent::rules(),
+            'learning_method' => ['sometimes', 'required', 'string', 'max:255'],
+            'year' => ['sometimes', 'required', 'integer', 'min:2000', 'max:2100'],
+            'month' => ['sometimes', 'required', 'integer', 'min:1', 'max:12'],
+            'start_date' => ['sometimes', 'required', 'date'],
+            'end_date' => ['sometimes', 'required', 'date', 'after_or_equal:start_date'],
+            'duration_days' => ['sometimes', 'required', 'integer', 'min:0'],
+            'learning_hours_per_day' => ['sometimes', 'required', 'integer', 'min:0'],
+            'financing_category' => ['sometimes', 'required', 'string', 'max:255'],
+            'cost_allocation' => ['sometimes', 'required', 'string', 'max:255'],
         ];
     }
 }

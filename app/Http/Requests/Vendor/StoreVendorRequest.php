@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\Organizer;
+namespace App\Http\Requests\Vendor;
 
-use App\Enums\OrganizerType;
+use App\Enums\VendorType;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreOrganizerRequest extends FormRequest
+class StoreVendorRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -21,8 +21,8 @@ class StoreOrganizerRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:150'],
-            'type' => ['required', Rule::enum(OrganizerType::class)],
-            'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
+            'classification' => ['required', Rule::enum(VendorType::class)],
+            'is_lpp' => ['nullable', 'boolean'],
 
             'phone' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:150'],
@@ -34,21 +34,23 @@ class StoreOrganizerRequest extends FormRequest
             'pic_phone' => ['nullable', 'string', 'max:30'],
             'pic_email' => ['nullable', 'email', 'max:150'],
             'pic_position' => ['nullable', 'string', 'max:100'],
+
+            'status' => ['nullable', 'boolean'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
         if (! $this->filled('status')) {
-            $this->merge(['status' => 'ACTIVE']);
+            $this->merge(['status' => true]);
         }
     }
 
-    /** is_ptpn_group diturunkan dari type, tidak dikirim frontend */
+    /** is_lpp diturunkan dari type, tidak dikirim frontend */
     public function validatedWithFlags(): array
     {
         $data = $this->validated();
-        $data['is_ptpn_group'] = OrganizerType::from($data['type'])->isPtpnGroup();
+        $data['is_lpp'] = VendorType::from($data['classification'])->isLpp();
 
         return $data;
     }
@@ -57,7 +59,7 @@ class StoreOrganizerRequest extends FormRequest
     {
         return [
             'name.required' => 'Nama penyelenggara wajib diisi.',
-            'type.required' => 'Jenis penyelenggara wajib dipilih.',
+            'classification.required' => 'Jenis penyelenggara wajib dipilih.',
             'email.email' => 'Format email tidak valid.',
             'pic_email.email' => 'Format email PIC tidak valid.',
         ];

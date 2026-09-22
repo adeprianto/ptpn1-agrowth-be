@@ -11,6 +11,7 @@ use App\Models\Employees;
 use App\Models\Entities;
 use App\Models\EntityOperational;
 use App\Traits\ApiResponse;
+use App\Traits\ListQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,13 +19,25 @@ use Illuminate\Support\Facades\DB;
 class UnitController extends Controller
 {
     use ApiResponse;
+    use ListQuery;
+
+    /** Kolom yang boleh dipakai mengurutkan (nama dari frontend -> kolom database). */
+    private const SORTABLE = [
+        'name' => 'entities.name',
+        'code' => 'entities.code',
+        'regional' => 'parents.name',
+        'regional_id' => 'parents.name',
+        'jumlah_karyawan' => 'jumlah_karyawan',
+    ];
 
     // GET /api/v1/units
     public function index(Request $request): JsonResponse
     {
         $query = Entities::query()
-            ->where('type', 'UNIT')
-            ->whereIn('id', $request->user()->accessibleEntityIds())
+            ->where('entities.type', 'UNIT')
+            ->whereIn('entities.id', $request->user()->accessibleEntityIds())
+            // join ke induk supaya kolom Regional bisa dicari dan diurutkan
+            ->leftJoin('entities as parents', 'parents.id', '=', 'entities.parent_id')
             ->with([
                 'parent:id,code,name',
                 'operationals.operationalCategory',
@@ -32,30 +45,36 @@ class UnitController extends Controller
             ])
             ->addSelect(['entities.*', 'jumlah_karyawan' => $this->employeeCountSubquery()]);
 
-        if ($regionalId = $request->query('regional_id')) {
-            $query->where('parent_id', $regionalId);
-        }
-
-        if ($operationalCategoryId = $request->query('operational_category_id')) {
-            $query->whereHas('operationals', function ($q) use ($operationalCategoryId) {
-                $q->where('operational_category_id', $operationalCategoryId);
-            });
-        }
-
-        if ($businessTypeId = $request->query('business_type_id')) {
-            $query->whereHas('operationals', function ($q) use ($businessTypeId) {
-                $q->where('business_type_id', $businessTypeId);
-            });
-        }
-
+        // Pencarian gabungan nama + kode (kolom dikualifikasi karena tabelnya di-join ke dirinya sendiri)
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('code', 'like', "%{$search}%");
+                $q->where('entities.name', 'like', "%{$search}%")
+                    ->orWhere('entities.code', 'like', "%{$search}%");
             });
         }
 
-        $units = $query->orderBy('name')->paginate($request->integer('per_page', 15));
+        // Kotak cari di bawah judul kolom
+        $this->applyLike($query, $request, 'name', 'entities.name');
+        $this->applyLike($query, $request, 'code', 'entities.code');
+        $this->applyLike($query, $request, 'regional', 'parents.name');
+
+        // Daftar centang di modal filter — boleh lebih dari satu nilai
+        $this->applyInFilter($query, $request, 'regional_id', 'entities.parent_id');
+
+        foreach ([
+            'operational_category_id' => 'operational_category_id',
+            'business_type_id' => 'business_type_id',
+        ] as $param => $column) {
+            $values = $this->queryList($request, $param);
+
+            if ($values !== []) {
+                $query->whereHas('operationals', fn ($q) => $q->whereIn($column, $values));
+            }
+        }
+
+        $this->applySort($query, $request, self::SORTABLE, 'entities.name');
+
+        $units = $query->paginate($request->integer('per_page', 15));
 
         return $this->successPaginated($units, UnitListResource::class, 'Daftar unit berhasil diambil');
     }

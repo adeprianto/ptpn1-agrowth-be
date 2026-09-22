@@ -12,21 +12,63 @@ class TrainingRealizations extends Model
     protected $table = 'training_realizations';
 
     protected $fillable = [
-        'training_name', 
         'training_id',
-        'training_start_date', 
-        'training_end_date',
-        'total_participants', 
-        'total_learning_hours', 
-        'cost',
+        'learning_method',
+        'learning_location',
+        'total_participants',
+        'year',
+        'month',
+        'start_date',
+        'end_date',
+        'duration_days',
+        'learning_hours_per_day',
+        'total_experiental_learning_hours',
+        'total_social_learning_hours',
+        'total_formal_learning_hours',
+        'total_duration_learning_hours',
+        'total_learning_cost',
+        'total_transport_cost',
+        'total_perdiem_cost',
+        'total_travel_expense_cost',
+        'total_cost',
+        'financing_category',
+        'cost_allocation',
     ];
 
     protected $casts = [
-        'training_start_date' => 'date',
-        'training_end_date' => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
         'total_participants' => 'integer',
-        'total_learning_hours' => 'integer',
-        'cost' => 'integer',
+        'year' => 'integer',
+        'month' => 'integer',
+        'duration_days' => 'integer',
+        'learning_hours_per_day' => 'integer',
+        'total_experiental_learning_hours' => 'integer',
+        'total_social_learning_hours' => 'integer',
+        'total_formal_learning_hours' => 'integer',
+        'total_duration_learning_hours' => 'integer',
+        'total_learning_cost' => 'integer',
+        'total_transport_cost' => 'integer',
+        'total_perdiem_cost' => 'integer',
+        'total_travel_expense_cost' => 'integer',
+        'total_cost' => 'integer',
+    ];
+
+    /**
+     * Kolom total_* tidak boleh null di database dan tidak dikirim client,
+     * jadi realisasi baru (yang belum punya detail) dimulai dari nol.
+     */
+    protected $attributes = [
+        'total_participants' => 0,
+        'total_experiental_learning_hours' => 0,
+        'total_social_learning_hours' => 0,
+        'total_formal_learning_hours' => 0,
+        'total_duration_learning_hours' => 0,
+        'total_learning_cost' => 0,
+        'total_transport_cost' => 0,
+        'total_perdiem_cost' => 0,
+        'total_travel_expense_cost' => 0,
+        'total_cost' => 0,
     ];
 
     public function training()
@@ -39,15 +81,25 @@ class TrainingRealizations extends Model
         return $this->hasMany(TrainingRealizationDetails::class, 'training_realization_id');
     }
 
-    // hitung ulang ringkasan dari detail peserta
+    /**
+     * Ringkasan realisasi selalu turunan dari detail peserta, tidak pernah
+     * diisi manual. Dipanggil setiap kali detail ditambah/diubah/dihapus.
+     */
     public function recalculateTotals(): void
     {
         $details = $this->details()->get();
 
         $this->update([
             'total_participants' => $details->count(),
-            'total_learning_hours' => (int) $details->sum('learning_hours'),
-            'cost' => (int) $details->sum('cost'),
+            'total_experiental_learning_hours' => (int) $details->sum('experiental_learning_hours'),
+            'total_social_learning_hours' => (int) $details->sum('social_learning_hours'),
+            'total_formal_learning_hours' => (int) $details->sum('formal_learning_hours'),
+            'total_duration_learning_hours' => (int) $details->sum('duration_learning_hours'),
+            'total_learning_cost' => (int) $details->sum('learning_cost'),
+            'total_transport_cost' => (int) $details->sum('transport_cost'),
+            'total_perdiem_cost' => (int) $details->sum('perdiem_cost'),
+            'total_travel_expense_cost' => (int) $details->sum('travel_expense_cost'),
+            'total_cost' => (int) $details->sum('total_cost'),
         ]);
     }
 }

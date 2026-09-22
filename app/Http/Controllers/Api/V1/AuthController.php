@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
+use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,20 +20,20 @@ class AuthController extends Controller
     {
         $request->authenticate();
 
-        $request->session()->regenerate();
+        $user = User::where('email', $request->email)->first()->load('entity', 'employee');
 
-        $user = Auth::user()->load('entity');
+        $token = $user->createToken('auth_token')->plainTextToken;
 
-        return $this->success(new UserResource($user), 'Login berhasil');
+        return $this->success([
+            'token' => $token,
+            'user' => new UserResource($user),
+        ], 'Login berhasil');
     }
 
     // POST /api/v1/logout
     public function logout(Request $request): JsonResponse
     {
-        Auth::guard('web')->logout();
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $request->user()->currentAccessToken()->delete();
 
         return $this->success(null, 'Logout berhasil');
     }

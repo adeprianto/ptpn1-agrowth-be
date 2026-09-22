@@ -12,19 +12,23 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('vendors', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->text('nama');
-            $table->string('klasifikasi')->default('eksternal');
-            $table->string('is_lpp')->default(false);
-            $table->string('telp')->nullable();
+            $table->id();
+            $table->text('name');
+            $table->string('classification')->default('eksternal');
+            $table->boolean('is_lpp')->default(false);
+
+            $table->string('phone')->nullable();
             $table->string('email')->nullable();
             $table->string('website')->nullable();
-            $table->string('kota')->nullable();
-            $table->string('alamat')->nullable();
-            $table->string('nama_pic')->nullable();
-            $table->string('telp_pic')->nullable();
-            $table->string('email_pic')->nullable();
-            $table->string('jabatan_pic')->nullable();
+            $table->string('city')->nullable();
+            $table->string('address')->nullable();
+
+            $table->string('pic_name')->nullable();
+            $table->string('pic_phone')->nullable();
+            $table->string('pic_email')->nullable();
+            $table->string('pic_position')->nullable();
+
+            $table->boolean('status')->default(true);
             $table->timestamps();
         });
     }

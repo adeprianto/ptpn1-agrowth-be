@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Http\Requests\Organizer;
+namespace App\Http\Requests\Vendor;
 
-use App\Enums\OrganizerType;
+use App\Enums\VendorType;
 use Illuminate\Validation\Rule;
 
-class UpdateOrganizerRequest extends StoreOrganizerRequest
+class UpdateVendorRequest extends StoreVendorRequest
 {
     public function rules(): array
     {
         return [
             ...parent::rules(),
             'name' => ['sometimes', 'required', 'string', 'max:150'],
-            'type' => ['sometimes', 'required', Rule::enum(OrganizerType::class)],
+            'classification' => ['sometimes', 'required', Rule::enum(VendorType::class)],
         ];
     }
 
@@ -25,8 +25,8 @@ class UpdateOrganizerRequest extends StoreOrganizerRequest
     {
         $data = $this->validated();
 
-        if (isset($data['type'])) {
-            $data['is_ptpn_group'] = OrganizerType::from($data['type'])->isPtpnGroup();
+        if (isset($data['classification'])) {
+            $data['is_lpp'] = VendorType::from($data['classification'])->isLpp();
         }
 
         return $data;
