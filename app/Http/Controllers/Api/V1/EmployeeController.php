@@ -93,6 +93,8 @@ class EmployeeController extends Controller
         $this->applyLike($query, $request, 'posisi', 'position_titles.name');
 
         // Daftar centang di modal filter — boleh lebih dari satu nilai
+        // Daftar NIK persis (bukan "mengandung") — dipakai impor peserta dari Excel
+        $this->applyInFilter($query, $request, 'niks', 'employees.nik');
         $this->applyInFilter($query, $request, 'entity_id', 'employees.entity_id');
         $this->applyInFilter($query, $request, 'status', 'employees.status');
         $this->applyInFilter($query, $request, 'golongan_phdp', 'employees.golongan_phdp');

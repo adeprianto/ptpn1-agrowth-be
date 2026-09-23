@@ -7,6 +7,7 @@ use App\Http\Requests\TrainingRealization\StoreTrainingRealizationRequest;
 use App\Http\Requests\TrainingRealization\UpdateTrainingRealizationRequest;
 use App\Http\Resources\TrainingRealizationResource;
 use App\Models\TrainingRealizations;
+use App\Models\Trainings;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -76,6 +77,10 @@ class TrainingRealizationController extends Controller
     {
         $data = $request->validated();
 
+        if ($locked = $this->rejectIfTrainingInactive(Trainings::find($data['training_id']))) {
+            return $locked;
+        }
+
         $realization = DB::transaction(function () use ($data) {
             $realization = TrainingRealizations::create(Arr::except($data, 'details'));
             $realization->syncDetails($data['details']);
@@ -114,6 +119,10 @@ class TrainingRealizationController extends Controller
     ): JsonResponse {
         $data = $request->validated();
 
+        if ($locked = $this->rejectIfTrainingInactive($trainingRealization->training)) {
+            return $locked;
+        }
+
         DB::transaction(function () use ($trainingRealization, $data) {
             $trainingRealization->update(Arr::except($data, 'details'));
             $trainingRealization->syncDetails($data['details']);
@@ -130,12 +139,33 @@ class TrainingRealizationController extends Controller
     // DELETE /api/v1/training-realizations/{trainingRealization} — pesertanya ikut terhapus
     public function destroy(TrainingRealizations $trainingRealization): JsonResponse
     {
+        if ($locked = $this->rejectIfTrainingInactive($trainingRealization->training)) {
+            return $locked;
+        }
+
         DB::transaction(function () use ($trainingRealization) {
             $trainingRealization->details()->delete();
             $trainingRealization->delete();
         });
 
         return $this->success(null, 'Realisasi pelatihan berhasil dihapus');
+    }
+
+    /**
+     * Laporan milik pelatihan non-aktif dikunci: tidak bisa ditambah, diubah,
+     * maupun dihapus. Mengembalikan respons 409 kalau terkunci, atau null
+     * kalau pelatihannya aktif dan proses boleh dilanjutkan.
+     */
+    private function rejectIfTrainingInactive(?Trainings $training): ?JsonResponse
+    {
+        if ($training && ! $training->status) {
+            return $this->error(
+                'Pelatihan ini non-aktif, sehingga laporannya tidak dapat ditambah, diubah, maupun dihapus.',
+                409
+            );
+        }
+
+        return null;
     }
 
     /**
