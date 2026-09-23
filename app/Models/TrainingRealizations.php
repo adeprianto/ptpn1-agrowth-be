@@ -14,6 +14,7 @@ class TrainingRealizations extends Model
     protected $fillable = [
         'training_id',
         'learning_method',
+        'learning_city',
         'learning_location',
         'total_participants',
         'year',
@@ -79,6 +80,43 @@ class TrainingRealizations extends Model
     public function details()
     {
         return $this->hasMany(TrainingRealizationDetails::class, 'training_realization_id');
+    }
+
+    /**
+     * Ganti seluruh peserta realisasi ini dengan daftar baru, lalu hitung ulang
+     * totalnya. Dipakai saat laporan disimpan dari form: yang dikirim form
+     * selalu daftar peserta yang lengkap, jadi yang lama dihapus semua dan
+     * dibuat ulang — lebih sederhana daripada membandingkan satu per satu.
+     *
+     * Periode tiap peserta (tahun, bulan, tanggal, durasi) disalin dari
+     * realisasinya, sedangkan total jam dan total biaya dijumlahkan di sini.
+     *
+     * @param  array<int, array<string, int>>  $participants
+     */
+    public function syncDetails(array $participants): void
+    {
+        $this->details()->delete();
+
+        foreach ($participants as $participant) {
+            $this->details()->create([
+                ...$participant,
+                'year' => $this->year,
+                'month' => $this->month,
+                'start_date' => $this->start_date,
+                'end_date' => $this->end_date,
+                'duration_days' => $this->duration_days,
+                'learning_hours_per_day' => $this->learning_hours_per_day,
+                'duration_learning_hours' => $participant['experiental_learning_hours']
+                    + $participant['social_learning_hours']
+                    + $participant['formal_learning_hours'],
+                'total_cost' => $participant['learning_cost']
+                    + $participant['transport_cost']
+                    + $participant['perdiem_cost']
+                    + $participant['travel_expense_cost'],
+            ]);
+        }
+
+        $this->recalculateTotals();
     }
 
     /**

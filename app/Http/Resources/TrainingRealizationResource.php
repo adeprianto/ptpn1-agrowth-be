@@ -29,6 +29,7 @@ class TrainingRealizationResource extends JsonResource
                 ] : null,
             ] : null),
             'learning_method' => $this->learning_method,
+            'learning_city' => $this->learning_city,
             'learning_location' => $this->learning_location,
             'year' => $this->year,
             'month' => $this->month,

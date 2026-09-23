@@ -11,6 +11,8 @@ use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 
 class TrainingRealizationController extends Controller
 {
@@ -56,11 +58,31 @@ class TrainingRealizationController extends Controller
         );
     }
 
-    // POST /api/v1/training-realizations
+    // GET /api/v1/training-realizations/summary
+    public function summary(Request $request): JsonResponse
+    {
+        $query = TrainingRealizations::query();
+        $this->scopeToAccessibleEntities($query, $request);
+
+        return $this->success([
+            'total_cost' => (int) (clone $query)->sum('total_cost'),
+            'total_learning_hours' => (int) (clone $query)->sum('total_duration_learning_hours'),
+            'total_participants' => (int) (clone $query)->sum('total_participants'),
+        ], 'Ringkasan realisasi pelatihan berhasil diambil');
+    }
+
+    // POST /api/v1/training-realizations — laporan + seluruh pesertanya sekaligus
     public function store(StoreTrainingRealizationRequest $request): JsonResponse
     {
-        // kolom total_* tidak ikut dikirim: nilainya nol sampai ada detail peserta
-        $realization = TrainingRealizations::create($request->validated());
+        $data = $request->validated();
+
+        $realization = DB::transaction(function () use ($data) {
+            $realization = TrainingRealizations::create(Arr::except($data, 'details'));
+            $realization->syncDetails($data['details']);
+
+            return $realization;
+        });
+
         $realization->load('training.vendor')->loadCount('details');
 
         return $this->success(
@@ -76,7 +98,7 @@ class TrainingRealizationController extends Controller
         $trainingRealization->load([
             'training.vendor',
             'details.employee.positionTitle',
-            'details.employee.entity',
+            'details.employee.entity.parent',
         ])->loadCount('details');
 
         return $this->success(
@@ -85,12 +107,18 @@ class TrainingRealizationController extends Controller
         );
     }
 
-    // PUT /api/v1/training-realizations/{trainingRealization}
+    // PUT /api/v1/training-realizations/{trainingRealization} — peserta lama diganti daftar baru
     public function update(
         UpdateTrainingRealizationRequest $request,
         TrainingRealizations $trainingRealization
     ): JsonResponse {
-        $trainingRealization->update($request->validated());
+        $data = $request->validated();
+
+        DB::transaction(function () use ($trainingRealization, $data) {
+            $trainingRealization->update(Arr::except($data, 'details'));
+            $trainingRealization->syncDetails($data['details']);
+        });
+
         $trainingRealization->load('training.vendor')->loadCount('details');
 
         return $this->success(
@@ -99,17 +127,13 @@ class TrainingRealizationController extends Controller
         );
     }
 
-    // DELETE /api/v1/training-realizations/{trainingRealization}
+    // DELETE /api/v1/training-realizations/{trainingRealization} — pesertanya ikut terhapus
     public function destroy(TrainingRealizations $trainingRealization): JsonResponse
     {
-        if ($trainingRealization->details()->exists()) {
-            return $this->error(
-                'Realisasi tidak bisa dihapus karena masih memiliki peserta. Hapus dulu daftar pesertanya.',
-                409
-            );
-        }
-
-        $trainingRealization->delete();
+        DB::transaction(function () use ($trainingRealization) {
+            $trainingRealization->details()->delete();
+            $trainingRealization->delete();
+        });
 
         return $this->success(null, 'Realisasi pelatihan berhasil dihapus');
     }

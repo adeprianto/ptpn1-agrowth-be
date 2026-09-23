@@ -33,6 +33,12 @@ class TrainingRealizationDetailResource extends JsonResource
                     'type' => $this->employee->entity->type,
                     'code' => $this->employee->entity->code,
                     'name' => $this->employee->entity->name,
+                    // induk entity dipakai frontend untuk menampilkan regional peserta
+                    'parent' => $this->employee->entity->relationLoaded('parent') && $this->employee->entity->parent ? [
+                        'id' => $this->employee->entity->parent->id,
+                        'type' => $this->employee->entity->parent->type,
+                        'name' => $this->employee->entity->parent->name,
+                    ] : null,
                 ] : null,
             ] : null),
             'year' => $this->year,

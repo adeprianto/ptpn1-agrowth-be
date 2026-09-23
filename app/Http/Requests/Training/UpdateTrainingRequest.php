@@ -8,6 +8,7 @@ class UpdateTrainingRequest extends StoreTrainingRequest
     {
         return [
             ...parent::rules(),
+            'vendor_id' => ['sometimes', 'required', 'exists:vendors,id'],
             'name' => ['sometimes', 'required', 'string'],
             'hr_development_type' => ['sometimes', 'required', 'string', 'max:255'],
             'competency_type' => ['sometimes', 'required', 'string', 'max:255'],

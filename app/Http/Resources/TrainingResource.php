@@ -29,6 +29,9 @@ class TrainingResource extends JsonResource
                 'classification' => $this->vendor->classification?->value,
                 'is_lpp' => $this->vendor->is_lpp,
             ] : null),
+            // Tag dikirim sebagai daftar teks: nilainya tidak punya tabel master,
+            // jadi id barisnya tidak berguna di sisi frontend.
+            'tags' => $this->whenLoaded('tags', fn () => $this->tags->pluck('name')->all()),
             'realizations_count' => $this->whenCounted('realizations'),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
