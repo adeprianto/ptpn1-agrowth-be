@@ -48,11 +48,16 @@ class User extends Authenticatable
         if (! $this->entity) {
             return [];
         }
-    
-        if ($this->entity->type === 'HEAD_OFFICE') {
+
+        if ($this->hasFullAccess()) {
             return Entities::pluck('id')->all();
         }
-    
+
         return $this->entity->accessibleEntityIds();
+    }
+
+    public function hasFullAccess(): bool
+    {
+        return $this->entity?->type === 'HEAD_OFFICE';
     }
 }

@@ -10,6 +10,8 @@ class Employees extends Model
 {
     use HasFactory;
 
+    public const DATA_VERSION_CACHE_KEY = 'employees:data-version';
+
     protected $fillable = [
         'nik', 
         'name',
@@ -41,8 +43,6 @@ class Employees extends Model
         'tanggal_acuan_masa_kerja' => 'date',
     ];
 
-    // === Relasi ===
-
     public function positionTitle()
     {
         return $this->belongsTo(PositionTitle::class);
@@ -63,8 +63,6 @@ class Employees extends Model
     {
         return $this->hasMany(TrainingRealizationDetails::class, 'employee_id');
     }
-
-    // === Derived attributes ===
 
     public function getNamaLengkapAttribute(): string
     {

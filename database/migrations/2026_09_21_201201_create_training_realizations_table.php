@@ -29,6 +29,7 @@ return new class extends Migration
             $table->integer('total_duration_learning_hours')->unsigned();
             $table->bigInteger('total_learning_cost')->unsigned();
             $table->bigInteger('total_transport_cost')->unsigned();
+            $table->bigInteger('total_accomodation_cost')->unsigned();
             $table->bigInteger('total_perdiem_cost')->unsigned();
             $table->bigInteger('total_travel_expense_cost')->unsigned();
             $table->bigInteger('total_cost')->unsigned();

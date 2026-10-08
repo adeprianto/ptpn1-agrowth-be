@@ -26,5 +26,7 @@ Route::prefix('v1')->group(function () {
         require __DIR__.'/api/v1/vendors.php';
         require __DIR__.'/api/v1/trainings.php';
         require __DIR__.'/api/v1/training-realizations.php';
+        require __DIR__.'/api/v1/development-programs.php';
+        require __DIR__.'/api/v1/competencies.php';
     });
 });

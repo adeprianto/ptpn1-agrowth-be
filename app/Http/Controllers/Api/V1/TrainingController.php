@@ -47,6 +47,8 @@ class TrainingController extends Controller
         // Daftar centang di modal filter — boleh lebih dari satu nilai.
         $this->applyInFilter($query, $request, 'vendor_id', 'trainings.vendor_id');
         $this->applyInFilter($query, $request, 'hr_development_type', 'trainings.hr_development_type');
+        // Laporan PSDM membuang Program Budaya yang punya halamannya sendiri.
+        $this->applyNotInFilter($query, $request, 'exclude_hr_development_type', 'trainings.hr_development_type');
         $this->applyInFilter($query, $request, 'competency_type', 'trainings.competency_type');
         $this->applyInFilter($query, $request, 'learning_sector', 'trainings.learning_sector');
 

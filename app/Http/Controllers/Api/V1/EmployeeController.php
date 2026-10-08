@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\BodLevel;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employees;
@@ -12,8 +13,10 @@ use App\Models\JobGroups;
 use App\Models\PositionTitle;
 use App\Traits\ApiResponse;
 use App\Traits\ListQuery;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class EmployeeController extends Controller
@@ -55,20 +58,24 @@ class EmployeeController extends Controller
         ];
     }
 
+    /**
+     * Parameter filter yang menyentuh kolom tabel relasi, jadi butuh join
+     * walaupun yang dihitung hanya jumlah barisnya.
+     */
+    private const JOINED_FILTERS = ['posisi', 'operasional', 'job_group_id', 'job_function_id', 'level_bod', 'regional_id'];
+
     // GET /api/v1/employees
     public function index(Request $request): JsonResponse
     {
-        $query = Employees::query()
-            // join dipakai untuk menyaring dan mengurutkan kolom milik relasi;
-            // semuanya belongsTo, jadi tidak menggandakan baris
+        // Join ke 6 tabel relasi membuat `count(*)` paginasi ~15x lebih lambat
+        // (±190 ms vs ±11 ms untuk 19 ribu pegawai). Semuanya belongsTo, jadi
+        // tidak mengubah jumlah baris; total cukup dihitung dari `employees`
+        // saja kecuali ada filter yang memang menyentuh tabel relasi.
+        $needsJoins = collect(self::JOINED_FILTERS)->contains(fn (string $param) => $request->filled($param));
+        $total = $this->filteredQuery($request, $needsJoins)->count();
+
+        $query = $this->filteredQuery($request, true)
             ->select('employees.*')
-            ->leftJoin('position_titles', 'position_titles.id', '=', 'employees.position_title_id')
-            ->leftJoin('job_groups', 'job_groups.id', '=', 'position_titles.job_group_id')
-            ->leftJoin('job_functions', 'job_functions.id', '=', 'position_titles.job_function_id')
-            ->leftJoin('entities', 'entities.id', '=', 'employees.entity_id')
-            // induk entity; untuk pegawai Unit, inilah regionalnya
-            ->leftJoin('entities as regionals', 'regionals.id', '=', 'entities.parent_id')
-            ->leftJoin('entity_operationals', 'entity_operationals.id', '=', 'employees.entity_operational_id')
             ->with([
                 'positionTitle.jobGroup',
                 'positionTitle.jobFunction',
@@ -76,8 +83,39 @@ class EmployeeController extends Controller
                 'entity.parent:id,type,code,name',
                 'entityOperational.operationalCategory',
                 'entityOperational.businessType',
-            ])
-            ->whereIn('employees.entity_id', $request->user()->accessibleEntityIds());
+            ]);
+
+        $this->applySort($query, $request, $this->sortableColumns(), 'employees.name');
+
+        $employees = $query->paginate($request->integer('per_page', 20), ['*'], 'page', null, $total);
+
+        return $this->successPaginated($employees, EmployeeResource::class, 'Daftar pegawai berhasil diambil');
+    }
+
+    /**
+     * Pegawai dalam cakupan akun, dengan seluruh filter dari request.
+     *
+     * @param  bool  $withJoins  pasang join ke tabel relasi (untuk mengurutkan
+     *   dan menampilkan); dipaksa true kalau ada filter yang membutuhkannya
+     */
+    private function filteredQuery(Request $request, bool $withJoins): Builder
+    {
+        $query = Employees::query();
+
+        if ($withJoins) {
+            // join dipakai untuk menyaring dan mengurutkan kolom milik relasi;
+            // semuanya belongsTo, jadi tidak menggandakan baris
+            $query
+                ->leftJoin('position_titles', 'position_titles.id', '=', 'employees.position_title_id')
+                ->leftJoin('job_groups', 'job_groups.id', '=', 'position_titles.job_group_id')
+                ->leftJoin('job_functions', 'job_functions.id', '=', 'position_titles.job_function_id')
+                ->leftJoin('entities', 'entities.id', '=', 'employees.entity_id')
+                // induk entity; untuk pegawai Unit, inilah regionalnya
+                ->leftJoin('entities as regionals', 'regionals.id', '=', 'entities.parent_id')
+                ->leftJoin('entity_operationals', 'entity_operationals.id', '=', 'employees.entity_operational_id');
+        }
+
+        $this->scopeToUser($query, $request);
 
         // Pencarian gabungan nama + NIK, dipakai tabel karyawan di halaman detail entity
         if ($search = $request->query('search')) {
@@ -105,11 +143,20 @@ class EmployeeController extends Controller
         $this->applyInFilter($query, $request, 'level_bod', 'position_titles.level_bod');
         $this->applyRegionalFilter($query, $request);
 
-        $this->applySort($query, $request, $this->sortableColumns(), 'employees.name');
+        return $query;
+    }
 
-        $employees = $query->paginate($request->integer('per_page', 20));
+    /**
+     * Batasi ke pegawai di entity yang boleh dilihat akun. Akun Head Office
+     * melihat semuanya, jadi filternya dilewati (lihat User::hasFullAccess).
+     */
+    private function scopeToUser(Builder $query, Request $request): void
+    {
+        $user = $request->user();
 
-        return $this->successPaginated($employees, EmployeeResource::class, 'Daftar pegawai berhasil diambil');
+        if (! $user->hasFullAccess()) {
+            $query->whereIn('employees.entity_id', $user->accessibleEntityIds());
+        }
     }
 
     /**
@@ -140,11 +187,32 @@ class EmployeeController extends Controller
      * Isi daftar centang di modal filter tabel pegawai. Hanya nilai yang
      * benar-benar dipakai pegawai dalam cakupan akun ini yang dikirim, supaya
      * tidak ada pilihan yang sudah pasti menghasilkan tabel kosong.
+     *
+     * Butuh ±12 query (±230 ms) padahal isinya hanya berubah saat data
+     * pegawai diimpor ulang, jadi hasilnya di-cache per cakupan akun.
+     * ImportEmployees menaikkan versi data supaya cache lama tidak terpakai.
      */
     public function filterOptions(Request $request): JsonResponse
     {
-        $entityIds = $request->user()->accessibleEntityIds();
-        $scoped = fn () => Employees::query()->whereIn('entity_id', $entityIds);
+        $user = $request->user();
+        $scope = $user->hasFullAccess() ? 'all' : md5(implode(',', $user->accessibleEntityIds()));
+        $version = Cache::get(Employees::DATA_VERSION_CACHE_KEY, 0);
+
+        $options = Cache::remember(
+            "employees:filter-options:v{$version}:{$scope}",
+            now()->addHour(),
+            fn () => $this->buildFilterOptions($user),
+        );
+
+        return $this->success($options, 'Pilihan filter pegawai berhasil diambil');
+    }
+
+    /** @return array<string, mixed> isi filter-options, dalam bentuk array biasa supaya bisa di-cache */
+    private function buildFilterOptions($user): array
+    {
+        $scoped = fn () => $user->hasFullAccess()
+            ? Employees::query()
+            : Employees::query()->whereIn('entity_id', $user->accessibleEntityIds());
 
         $entities = Entities::query()
             ->whereIn('id', $scoped()->select('entity_id'))
@@ -212,7 +280,7 @@ class EmployeeController extends Controller
             ->map(fn ($level) => (int) $level)
             ->values();
 
-        return $this->success([
+        return collect([
             'entities' => $entities,
             'regionals' => $regionals,
             'operasional' => $operasional,
@@ -221,7 +289,7 @@ class EmployeeController extends Controller
             'level_bod' => $levelBod,
             'golongan_phdp' => $this->distinctValues($scoped(), 'golongan_phdp'),
             'person_grade' => $this->distinctValues($scoped(), 'person_grade'),
-        ], 'Pilihan filter pegawai berhasil diambil');
+        ])->toArray();
     }
 
     /** Nilai unik sebuah kolom teks, tanpa yang kosong. */
@@ -239,9 +307,10 @@ class EmployeeController extends Controller
     // GET /api/v1/employees/summary - 4 card di atas tabel (total + per tipe penempatan)
     public function summary(Request $request): JsonResponse
     {
-        $counts = Employees::query()
-            ->join('entities', 'entities.id', '=', 'employees.entity_id')
-            ->whereIn('employees.entity_id', $request->user()->accessibleEntityIds())
+        $query = Employees::query()->join('entities', 'entities.id', '=', 'employees.entity_id');
+        $this->scopeToUser($query, $request);
+
+        $counts = $query
             ->selectRaw('entities.type, count(*) as total')
             ->groupBy('entities.type')
             ->pluck('total', 'type');
@@ -252,6 +321,90 @@ class EmployeeController extends Controller
             'total_regional' => (int) ($counts['REGIONAL'] ?? 0),
             'total_unit' => (int) ($counts['UNIT'] ?? 0),
         ], 'Ringkasan pegawai berhasil diambil');
+    }
+
+    /**
+     * GET /api/v1/employees/random-sample?total=100&levels[1]=10&levels[4]=40
+     *
+     * Pegawai acak untuk laporan Program Budaya, yang pesertanya (umumnya
+     * daring) tidak tercatat satu per satu. `levels` = jumlah per level BOD;
+     * sisa `total` yang belum dibagi diambil acak dari semua level.
+     *
+     * Kalau sebuah level kekurangan pegawai, kekurangannya ikut diambil dari
+     * level lain supaya jumlah peserta tetap `total` — jumlah inilah yang
+     * dipakai di laporan. Frontend membandingkan level hasilnya dengan
+     * permintaan untuk memberi tahu kekurangan tersebut.
+     */
+    public function randomSample(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'total' => ['required', 'integer', 'min:1', 'max:5000'],
+            'levels' => ['nullable', 'array'],
+            'levels.*' => ['integer', 'min:0'],
+        ], [
+            'total.required' => 'Jumlah peserta wajib diisi.',
+            'total.min' => 'Jumlah peserta minimal 1.',
+            'total.max' => 'Jumlah peserta maksimal 5.000.',
+        ]);
+
+        $total = (int) $validated['total'];
+        $levels = collect($validated['levels'] ?? [])
+            ->map(fn ($count) => (int) $count)
+            ->filter(fn (int $count) => $count > 0);
+
+        $unknown = $levels->keys()->reject(fn ($level) => BodLevel::tryFrom((int) $level) !== null);
+        if ($unknown->isNotEmpty()) {
+            return $this->error('Level BOD tidak dikenal: '.$unknown->implode(', '), 422);
+        }
+
+        if ($levels->sum() > $total) {
+            return $this->error('Jumlah peserta per level melebihi jumlah peserta.', 422);
+        }
+
+        $base = function () use ($request) {
+            $query = Employees::query()
+                ->leftJoin('position_titles', 'position_titles.id', '=', 'employees.position_title_id');
+            $this->scopeToUser($query, $request);
+
+            return $query;
+        };
+
+        $pickedIds = collect();
+        foreach ($levels as $level => $count) {
+            $pickedIds = $pickedIds->merge(
+                $base()->where('position_titles.level_bod', (int) $level)
+                    ->inRandomOrder()
+                    ->limit($count)
+                    ->pluck('employees.id')
+            );
+        }
+
+        // sisa yang belum dibagi + kekurangan level di atas
+        $remaining = $total - $pickedIds->count();
+        if ($remaining > 0) {
+            $pickedIds = $pickedIds->merge(
+                $base()->whereNotIn('employees.id', $pickedIds)
+                    ->inRandomOrder()
+                    ->limit($remaining)
+                    ->pluck('employees.id')
+            );
+        }
+
+        $employees = Employees::query()
+            ->select('employees.*')
+            ->leftJoin('position_titles', 'position_titles.id', '=', 'employees.position_title_id')
+            ->whereIn('employees.id', $pickedIds)
+            ->with(['positionTitle', 'entity:id,parent_id,type,code,name', 'entity.parent:id,type,code,name'])
+            // level tanpa BOD ditaruh paling akhir
+            ->orderByRaw('position_titles.level_bod is null')
+            ->orderBy('position_titles.level_bod')
+            ->orderBy('employees.name')
+            ->get();
+
+        return $this->success(
+            EmployeeResource::collection($employees),
+            'Sampel pegawai acak berhasil diambil'
+        );
     }
 
     // GET /api/v1/employees/{employee}

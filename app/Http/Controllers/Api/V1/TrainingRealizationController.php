@@ -6,29 +6,31 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\TrainingRealization\StoreTrainingRealizationRequest;
 use App\Http\Requests\TrainingRealization\UpdateTrainingRealizationRequest;
 use App\Http\Resources\TrainingRealizationResource;
+use App\Models\Entities;
 use App\Models\TrainingRealizations;
 use App\Models\Trainings;
 use App\Traits\ApiResponse;
+use App\Traits\ListQuery;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class TrainingRealizationController extends Controller
 {
     use ApiResponse;
+    use ListQuery;
 
     // GET /api/v1/training-realizations
     public function index(Request $request): JsonResponse
     {
-        $query = TrainingRealizations::with('training.vendor')->withCount('details');
+        $query = TrainingRealizations::with(['training.vendor', 'costAllocationEntity'])->withCount('details');
 
         if ($trainingId = $request->query('training_id')) {
             $query->where('training_id', $trainingId);
         }
 
-        foreach (['year', 'month', 'learning_method', 'financing_category', 'cost_allocation'] as $filter) {
+        foreach (['year', 'month', 'learning_method', 'financing_category', 'cost_allocation_entity_id'] as $filter) {
             if ($value = $request->query($filter)) {
                 $query->where($filter, $value);
             }
@@ -46,6 +48,7 @@ class TrainingRealizationController extends Controller
             $query->whereHas('training', fn ($q) => $q->where('name', 'like', "%{$search}%"));
         }
 
+        $this->filterByHrDevelopmentType($query, $request);
         $this->scopeToAccessibleEntities($query, $request);
 
         $realizations = $query
@@ -63,6 +66,7 @@ class TrainingRealizationController extends Controller
     public function summary(Request $request): JsonResponse
     {
         $query = TrainingRealizations::query();
+        $this->filterByHrDevelopmentType($query, $request);
         $this->scopeToAccessibleEntities($query, $request);
 
         return $this->success([
@@ -72,23 +76,38 @@ class TrainingRealizationController extends Controller
         ], 'Ringkasan realisasi pelatihan berhasil diambil');
     }
 
+    // GET /api/v1/training-realizations/cost-allocations — pilihan dropdown Alokasi Biaya
+    //
+    // Sengaja tidak dibatasi cakupan akun: akun Regional pun boleh mencatat
+    // biaya yang ditanggung Head Office atau regional lain.
+    public function costAllocations(): JsonResponse
+    {
+        $entities = Entities::query()
+            ->whereIn('type', ['HEAD_OFFICE', 'REGIONAL'])
+            ->where('status', 'ACTIVE')
+            // Head Office di urutan pertama, lalu Regional 1, 2, dst.
+            ->orderByRaw("type = 'HEAD_OFFICE' desc")
+            ->orderBy('code')
+            ->get(['id', 'type', 'code', 'name']);
+
+        return $this->success($entities, 'Pilihan alokasi biaya berhasil diambil');
+    }
+
     // POST /api/v1/training-realizations — laporan + seluruh pesertanya sekaligus
     public function store(StoreTrainingRealizationRequest $request): JsonResponse
     {
-        $data = $request->validated();
-
-        if ($locked = $this->rejectIfTrainingInactive(Trainings::find($data['training_id']))) {
+        if ($locked = $this->rejectIfTrainingInactive(Trainings::find($request->validated('training_id')))) {
             return $locked;
         }
 
-        $realization = DB::transaction(function () use ($data) {
-            $realization = TrainingRealizations::create(Arr::except($data, 'details'));
-            $realization->syncDetails($data['details']);
+        $realization = DB::transaction(function () use ($request) {
+            $realization = TrainingRealizations::create($request->realizationAttributes());
+            $realization->syncDetails($request->participantDetails());
 
             return $realization;
         });
 
-        $realization->load('training.vendor')->loadCount('details');
+        $realization->load(['training.vendor', 'costAllocationEntity'])->loadCount('details');
 
         return $this->success(
             new TrainingRealizationResource($realization),
@@ -102,6 +121,7 @@ class TrainingRealizationController extends Controller
     {
         $trainingRealization->load([
             'training.vendor',
+            'costAllocationEntity',
             'details.employee.positionTitle',
             'details.employee.entity.parent',
         ])->loadCount('details');
@@ -117,18 +137,16 @@ class TrainingRealizationController extends Controller
         UpdateTrainingRealizationRequest $request,
         TrainingRealizations $trainingRealization
     ): JsonResponse {
-        $data = $request->validated();
-
         if ($locked = $this->rejectIfTrainingInactive($trainingRealization->training)) {
             return $locked;
         }
 
-        DB::transaction(function () use ($trainingRealization, $data) {
-            $trainingRealization->update(Arr::except($data, 'details'));
-            $trainingRealization->syncDetails($data['details']);
+        DB::transaction(function () use ($trainingRealization, $request) {
+            $trainingRealization->update($request->realizationAttributes());
+            $trainingRealization->syncDetails($request->participantDetails());
         });
 
-        $trainingRealization->load('training.vendor')->loadCount('details');
+        $trainingRealization->load(['training.vendor', 'costAllocationEntity'])->loadCount('details');
 
         return $this->success(
             new TrainingRealizationResource($trainingRealization),
@@ -166,6 +184,26 @@ class TrainingRealizationController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Saring berdasarkan jenis pengembangan SDM milik pelatihannya.
+     *
+     * - `hr_development_type`         : hanya jenis ini (mis. halaman Program Budaya)
+     * - `exclude_hr_development_type` : semua kecuali jenis ini (mis. halaman PSDM).
+     *   Realisasi tanpa pelatihan tetap ikut di sini, supaya tidak hilang dari semua halaman.
+     */
+    private function filterByHrDevelopmentType(Builder $query, Request $request): void
+    {
+        $only = $this->queryList($request, 'hr_development_type');
+        if ($only !== []) {
+            $query->whereHas('training', fn ($q) => $q->whereIn('hr_development_type', $only));
+        }
+
+        $except = $this->queryList($request, 'exclude_hr_development_type');
+        if ($except !== []) {
+            $query->whereDoesntHave('training', fn ($q) => $q->whereIn('hr_development_type', $except));
+        }
     }
 
     /**

@@ -35,10 +35,25 @@ class TrainingRealizationResource extends JsonResource
             'month' => $this->month,
             'start_date' => $this->start_date?->toDateString(),
             'end_date' => $this->end_date?->toDateString(),
+            'holiday_dates' => $this->holiday_dates ?? [],
+            'calendar_days' => $this->calendar_days,
+            'effective_days' => $this->effective_days,
+            // hari efektif; pada data impor Excel nilainya dari file
             'duration_days' => $this->duration_days,
+            // true = data impor yang tanggal liburnya belum dilengkapi ("Perlu dicek")
+            'duration_days_mismatch' => $this->duration_days_mismatch,
             'learning_hours_per_day' => $this->learning_hours_per_day,
             'financing_category' => $this->financing_category,
-            'cost_allocation' => $this->cost_allocation,
+            // null pada data lama hasil impor Excel
+            'learning_cost_type' => $this->learning_cost_type?->value,
+            'cost_allocation_entity_id' => $this->cost_allocation_entity_id,
+            // null pada data lama hasil impor Excel yang tidak mencatat alokasi
+            'cost_allocation' => $this->whenLoaded('costAllocationEntity', fn () => $this->costAllocationEntity ? [
+                'id' => $this->costAllocationEntity->id,
+                'type' => $this->costAllocationEntity->type,
+                'code' => $this->costAllocationEntity->code,
+                'name' => $this->costAllocationEntity->name,
+            ] : null),
             // seluruh angka di bawah ini dihitung ulang dari detail peserta
             'total_participants' => $this->total_participants,
             'total_experiental_learning_hours' => $this->total_experiental_learning_hours,

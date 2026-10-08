@@ -3,9 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Imports\EmployeeSheetImport;
+use App\Models\Employees;
 use App\Models\Entities;
 use App\Models\PositionTitle;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ImportEmployees extends Command
@@ -24,7 +26,6 @@ class ImportEmployees extends Command
             return self::FAILURE;
         }
 
-        // Karyawan merujuk ke entity dan jabatan, jadi keduanya harus sudah ada.
         if (! Entities::exists() || ! PositionTitle::exists()) {
             $this->error('Master data belum lengkap. Jalankan `php artisan import:master-data` dulu.');
 
@@ -38,6 +39,8 @@ class ImportEmployees extends Command
         Excel::import($import, $path);
 
         $employee = $import->employeeImport;
+
+        Cache::forever(Employees::DATA_VERSION_CACHE_KEY, now()->timestamp);
 
         $this->newLine();
         $this->info('Import karyawan selesai.');

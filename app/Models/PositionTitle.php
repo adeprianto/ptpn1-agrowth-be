@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\BodLevel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class PositionTitle extends Model
 {
@@ -36,5 +37,14 @@ class PositionTitle extends Model
     public function employees()
     {
         return $this->hasMany(Employees::class);
+    }
+
+    /** Kompetensi yang dibutuhkan jabatan ini beserta level minimalnya (`required_level`). */
+    public function competencies(): BelongsToMany
+    {
+        return $this->belongsToMany(Competencies::class, 'position_title_competencies', 'position_title_id', 'competency_id')
+            ->using(PositionTitleCompetencies::class)
+            ->withPivot('required_level')
+            ->withTimestamps();
     }
 }

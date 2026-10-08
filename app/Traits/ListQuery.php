@@ -50,6 +50,20 @@ trait ListQuery
         }
     }
 
+    /**
+     * Kebalikan applyInFilter: buang baris yang nilainya salah satu dari daftar.
+     * Dipakai halaman yang memisahkan sebagian data ke halaman lain
+     * (mis. Laporan PSDM tanpa Program Budaya).
+     */
+    protected function applyNotInFilter($query, Request $request, string $param, string $column): void
+    {
+        $values = $this->queryList($request, $param);
+
+        if ($values !== []) {
+            $query->whereNotIn($column, $values);
+        }
+    }
+
     /** Pencarian "mengandung" untuk satu kolom. */
     protected function applyLike($query, Request $request, string $param, string $column): void
     {

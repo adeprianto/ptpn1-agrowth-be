@@ -9,6 +9,7 @@ Route::prefix('training-realizations')->group(function () {
     Route::post('/', [TrainingRealizationController::class, 'store']);
     // harus sebelum /{trainingRealization} supaya "summary" tidak dibaca sebagai id
     Route::get('/summary', [TrainingRealizationController::class, 'summary']);
+    Route::get('/cost-allocations', [TrainingRealizationController::class, 'costAllocations']);
     Route::get('/{trainingRealization}', [TrainingRealizationController::class, 'show']);
     Route::match(['put', 'patch'], '/{trainingRealization}', [TrainingRealizationController::class, 'update']);
     Route::delete('/{trainingRealization}', [TrainingRealizationController::class, 'destroy']);
